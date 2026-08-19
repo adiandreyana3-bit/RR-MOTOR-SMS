@@ -11,12 +11,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract project
+            - name: Extract project
         run: |
           unzip -o RR_MOTOR_SMS_source.zip -d project
-          cd project
-          mv RR_MOTOR_SMS/* .
-          rmdir RR_MOTOR_SMS
 
       - name: Setup Java
         uses: actions/setup-java@v4
