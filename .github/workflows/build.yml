@@ -2,6 +2,9 @@ name: Build APK RR MOTOR
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -20,17 +23,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Gradle
-  uses: gradle/actions/setup-gradle@v4
-  with:
-    gradle-version: '8.7'
-
-- name: Build APK
-  working-directory: project
-  run: gradle assembleDebug
+      - name: Build APK
+        working-directory: project
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: RR-MOTOR-APK
-          path: project/app/build/outputs/apk/debug/app-debug.apk
+          path: project/**/build/outputs/apk/debug/*.apk
