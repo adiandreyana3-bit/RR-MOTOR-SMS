@@ -40,6 +40,20 @@ jobs:
           p.write_text(text)
           PY
 
+      - name: Find Kotlin and Java files
+        run: |
+          echo "===== FILE KOTLIN ====="
+          find project -type f -name "*.kt" -print
+
+          echo ""
+          echo "===== FILE JAVA ====="
+          find project -type f -name "*.java" -print
+
+      - name: Show Android Manifest
+        run: |
+          echo "===== ANDROID MANIFEST ====="
+          cat project/app/src/main/AndroidManifest.xml
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
