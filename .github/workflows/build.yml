@@ -17,84 +17,21 @@ jobs:
       - name: Extract project
         run: unzip -o RR_MOTOR_COMPLETE.zip -d project
 
-      - name: Add SMS permissions to Manifest
+      - name: Show Android configuration
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          echo "===== APP BUILD GRADLE ====="
+          cat project/app/build.gradle
+          echo ""
+          echo "===== MANIFEST ====="
+          cat project/app/src/main/AndroidManifest.xml
 
-          p = Path("project/app/src/main/AndroidManifest.xml")
-          text = p.read_text()
-
-          permissions = [
-              '    <uses-permission android:name="android.permission.SEND_SMS" />',
-              '    <uses-permission android:name="android.permission.READ_SMS" />',
-              '    <uses-permission android:name="android.permission.RECEIVE_SMS" />'
-          ]
-
-          marker = '<application'
-          additions = '\n'.join(permissions) + '\n'
-
-          if 'android.permission.SEND_SMS' not in text:
-              text = text.replace(marker, additions + marker, 1)
-
-          p.write_text(text)
-          PY
-
-      - name: Add SMS runtime permission
+      - name: Find Java and Kotlin files
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("project/app/src/main/java/com/rrmotor/sms/MainActivity.java")
-          text = p.read_text()
-
-          import_line = "import android.Manifest;\nimport android.content.pm.PackageManager;\nimport android.os.Build;\nimport android.widget.Toast;\n"
-
-          if "import android.Manifest;" not in text:
-              lines = text.splitlines(True)
-
-              package_index = -1
-              for i, line in enumerate(lines):
-                  if line.startswith("package "):
-                      package_index = i
-                      break
-
-              if package_index >= 0:
-                  lines.insert(package_index + 1, "\n" + import_line)
-                  text = "".join(lines)
-              else:
-                  text = import_line + text
-
-          permission_code = r'''
-              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                  checkSelfPermission(Manifest.permission.SEND_SMS)
-                  != PackageManager.PERMISSION_GRANTED) {
-
-                  requestPermissions(
-                      new String[]{
-                          Manifest.permission.SEND_SMS,
-                          Manifest.permission.READ_SMS,
-                          Manifest.permission.RECEIVE_SMS
-                      },
-                      1001
-                  );
-              }
-          '''
-
-          if "requestPermissions(" not in text:
-              marker = "{"
-              pos = text.find(marker)
-
-              if pos >= 0:
-                  text = text[:pos + 1] + "\n" + permission_code + "\n" + text[pos + 1:]
-
-          p.write_text(text)
-          PY
-
-      - name: Show modified MainActivity
-        run: |
-          echo "===== MAIN ACTIVITY ====="
-          cat project/app/src/main/java/com/rrmotor/sms/MainActivity.java
+          echo "===== JAVA ====="
+          find project -type f -name "*.java" -print
+          echo ""
+          echo "===== KOTLIN ====="
+          find project -type f -name "*.kt" -print
 
       - name: Setup Java
         uses: actions/setup-java@v4
