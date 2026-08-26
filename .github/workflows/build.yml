@@ -24,22 +24,23 @@ jobs:
           mkdir -p project
           unzip -o RR_MOTOR_COMPLETE.zip -d project
 
-      - name: Prepare Android resources
-        run: |
-          mkdir -p project/app/src/main/res/drawable
-          if [ -f rr_motor_icon.png ]; then
-            cp rr_motor_icon.png project/app/src/main/res/drawable/rr_motor_icon.png
-            echo "Icon RR MOTOR ditemukan."
-          else
-            echo "Icon tidak ditemukan, lanjut tanpa icon khusus."
-          fi
-
       - name: Check source files
         run: |
           echo "===== FILE JAVA ====="
           find project -type f -name "*.java" -print || true
           echo "===== FILE KOTLIN ====="
           find project -type f -name "*.kt" -print || true
+
+      - name: Remove icon references
+        run: |
+          find project -type f \( -name "AndroidManifest.xml" -o -name "*.xml" \) -print0 | while IFS= read -r -d '' file; do
+            sed -i 's/android:icon="@drawable\/rr_motor_icon"//g' "$file"
+            sed -i 's/android:icon="@mipmap\/rr_motor_icon"//g' "$file"
+            sed -i 's/android:roundIcon="@drawable\/rr_motor_icon"//g' "$file"
+            sed -i 's/android:roundIcon="@mipmap\/rr_motor_icon"//g' "$file"
+          done
+
+          find project -type f -name "rr_motor_icon.png" -delete
 
       - name: Setup Java
         uses: actions/setup-java@v4
