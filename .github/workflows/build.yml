@@ -1,4 +1,4 @@
-name: Build APK RR MOTOR V2
+name: Build APK RR MOTOR FINAL
 
 on:
   workflow_dispatch:
@@ -12,17 +12,55 @@ jobs:
 
     steps:
 
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
       - name: Checkout
         uses: actions/checkout@v4
 
+
+      # ============================================================
+      # EXTRACT PROJECT
+      # ============================================================
+
       - name: Extract project
-        run: unzip -o RR_MOTOR_COMPLETE.zip -d project
+        run: |
+          rm -rf project
+          unzip -o RR_MOTOR_COMPLETE.zip -d project
+
+
+      # ============================================================
+      # SIAPKAN FOLDER RESOURCE
+      # ============================================================
+
+      - name: Prepare Android resources
+        run: |
+          mkdir -p project/app/src/main/res/drawable
+          mkdir -p project/app/src/main/res/xml
+
+
+      # ============================================================
+      # MASUKKAN ICON RR MOTOR
+      # ============================================================
+
+      - name: Install RR MOTOR icon
+        run: |
+          if [ -f rr_motor_icon.png ]; then
+            cp rr_motor_icon.png project/app/src/main/res/drawable/rr_motor_icon.png
+            echo "Icon RR MOTOR berhasil dipasang."
+          else
+            echo "ERROR: rr_motor_icon.png tidak ditemukan."
+            echo "Upload gambar ikon ke repository dengan nama rr_motor_icon.png"
+            exit 1
+          fi
+
 
       # ============================================================
       # ANDROID MANIFEST
       # ============================================================
 
-      - name: Create Android Manifest
+      - name: Create AndroidManifest.xml
         run: |
           cat > project/app/src/main/AndroidManifest.xml <<'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -31,11 +69,12 @@ jobs:
                   android:name="android.permission.POST_NOTIFICATIONS" />
 
               <uses-permission
-                  android:name="android.permission.READ_MEDIA_IMAGES" />
+                  android:name="android.permission.CAMERA" />
 
               <application
                   android:theme="@style/AppTheme"
                   android:label="RR MOTOR"
+                  android:icon="@drawable/rr_motor_icon"
                   android:allowBackup="false"
                   android:supportsRtl="true">
 
@@ -54,16 +93,102 @@ jobs:
                       android:name=".ReminderReceiver"
                       android:exported="false" />
 
+                  <receiver
+                      android:name=".BootReceiver"
+                      android:exported="false">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED" />
+                      </intent-filter>
+
+                  </receiver>
+
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="${applicationId}.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths" />
+
+                  </provider>
+
               </application>
 
           </manifest>
           EOF
 
+
       # ============================================================
-      # MAIN ACTIVITY
+      # FILE PROVIDER
       # ============================================================
 
-      - name: Create MainActivity
+      - name: Create file_paths.xml
+        run: |
+          cat > project/app/src/main/res/xml/file_paths.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+
+          <paths xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <files-path
+                  name="nota"
+                  path="nota/" />
+
+          </paths>
+          EOF
+
+
+      # ============================================================
+      # APP BUILD GRADLE
+      # ============================================================
+
+      - name: Configure app build.gradle
+        run: |
+          cat > project/app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+
+              namespace 'com.rrmotor.sms'
+
+              compileSdk 35
+
+              defaultConfig {
+
+                  applicationId 'com.rrmotor.sms'
+
+                  minSdk 23
+
+                  targetSdk 35
+
+                  versionCode 2
+
+                  versionName '2.0'
+              }
+          }
+
+          dependencies {
+
+              implementation 'androidx.core:core:1.15.0'
+          }
+          EOF
+
+
+      # ============================================================
+      # MAIN ACTIVITY
+      #
+      # REMINDER:
+      # NOMOR MESIN TIDAK WAJIB
+      #
+      # RIWAYAT SERVIS:
+      # NOMOR MESIN WAJIB
+      # ============================================================
+
+      - name: Create MainActivity.java
         run: |
           cat > project/app/src/main/java/com/rrmotor/sms/MainActivity.java <<'EOF'
           package com.rrmotor.sms;
@@ -76,278 +201,404 @@ jobs:
           import android.content.Intent;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
+          import android.graphics.Bitmap;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
-          import android.provider.MediaStore;
+          import android.provider.Settings;
           import android.view.View;
           import android.widget.*;
 
+          import androidx.core.content.FileProvider;
+
+          import java.io.File;
+          import java.io.FileOutputStream;
           import java.net.URLEncoder;
           import java.text.SimpleDateFormat;
           import java.util.*;
 
           public class MainActivity extends Activity {
 
-              EditText nomorMesin;
               EditText nama;
               EditText whatsapp;
               EditText motor;
               EditText nopol;
               EditText km;
-              EditText jenisServis;
               EditText catatan;
 
-              TextView tanggalText;
+              EditText nomorMesin;
+              EditText servisBerat;
+
               TextView status;
 
               LinearLayout historyLayout;
 
-              Calendar tanggalServis = Calendar.getInstance();
+              Calendar tanggalServis =
+                      Calendar.getInstance();
 
               SharedPreferences pref;
 
-              static final int NOTIFICATION_PERMISSION = 100;
-              static final int PHOTO_REQUEST = 200;
+              String notaPath = "";
+
+              static final int CAMERA_REQUEST = 200;
+
+              static final int NOTIFICATION_REQUEST = 300;
+
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
+
                   super.onCreate(savedInstanceState);
 
-                  pref = getSharedPreferences("RR_MOTOR_DATA", MODE_PRIVATE);
+                  pref =
+                          getSharedPreferences(
+                                  "RR_MOTOR_DATA",
+                                  MODE_PRIVATE);
 
-                  buildScreen();
+                  tampilkanAplikasi();
 
-                  requestNotificationPermission();
-
-                  loadHistory();
+                  mintaIzinNotifikasi();
               }
 
-              EditText field(String hint) {
 
-                  EditText e = new EditText(this);
+              EditText field(String text) {
 
-                  e.setHint(hint);
-                  e.setSingleLine(false);
+                  EditText e =
+                          new EditText(this);
+
+                  e.setHint(text);
+
+                  e.setSingleLine();
 
                   return e;
               }
 
-              void buildScreen() {
 
-                  ScrollView scroll = new ScrollView(this);
+              TextView heading(String text) {
 
-                  LinearLayout main = new LinearLayout(this);
+                  TextView t =
+                          new TextView(this);
 
-                  main.setOrientation(LinearLayout.VERTICAL);
-                  main.setPadding(24, 24, 24, 24);
+                  t.setText(text);
 
-                  TextView title = new TextView(this);
+                  t.setTextSize(21);
+
+                  t.setPadding(
+                          0,
+                          24,
+                          0,
+                          8);
+
+                  return t;
+              }
+
+
+              void tampilkanAplikasi() {
+
+                  ScrollView scroll =
+                          new ScrollView(this);
+
+                  LinearLayout main =
+                          new LinearLayout(this);
+
+                  main.setOrientation(
+                          LinearLayout.VERTICAL);
+
+                  main.setPadding(
+                          24,
+                          24,
+                          24,
+                          24);
+
+
+                  TextView title =
+                          new TextView(this);
 
                   title.setText(
-                          "RR MOTOR\n" +
-                          "REMINDER GANTI OLI");
+                          "🏍️ RR MOTOR\n" +
+                          "Reminder Ganti Oli");
 
-                  title.setTextSize(25);
+                  title.setTextSize(26);
 
                   main.addView(title);
 
-                  TextView info = new TextView(this);
+
+                  // =================================================
+                  // REMINDER GANTI OLI
+                  // =================================================
+
+                  main.addView(
+                          heading(
+                                  "🔔 REMINDER GANTI OLI"));
+
+
+                  TextView info =
+                          new TextView(this);
 
                   info.setText(
-                          "\nNomor Mesin adalah kunci utama pencarian riwayat.\n" +
-                          "Nomor Mesin wajib diisi.");
-
-                  info.setTextSize(16);
+                          "Nomor Mesin tidak wajib untuk reminder.\n" +
+                          "Isi No. WhatsApp untuk mengirim pengingat.");
 
                   main.addView(info);
 
-                  nomorMesin = field("Nomor Mesin *");
 
-                  nama = field("Nama pelanggan (opsional)");
+                  nama =
+                          field(
+                                  "Nama pelanggan (opsional)");
 
-                  whatsapp = field("No. WhatsApp *");
+                  whatsapp =
+                          field(
+                                  "No. WhatsApp *");
 
-                  motor = field("Jenis motor (opsional)");
+                  motor =
+                          field(
+                                  "Jenis motor (opsional)");
 
-                  nopol = field("No. polisi (opsional)");
+                  nopol =
+                          field(
+                                  "No. Polisi (opsional)");
 
-                  km = field("KM (opsional)");
+                  km =
+                          field(
+                                  "KM terakhir (opsional)");
 
-                  jenisServis = field("Jenis servis / oli");
+                  catatan =
+                          field(
+                                  "Catatan (opsional)");
 
-                  catatan = field("Catatan servis (opsional)");
 
-                  main.addView(nomorMesin);
                   main.addView(nama);
                   main.addView(whatsapp);
                   main.addView(motor);
                   main.addView(nopol);
                   main.addView(km);
-                  main.addView(jenisServis);
                   main.addView(catatan);
 
-                  Button tanggalButton = new Button(this);
 
-                  tanggalButton.setText(
-                          "Pilih Tanggal Servis");
+                  Button tanggal =
+                          new Button(this);
 
-                  main.addView(tanggalButton);
+                  tanggal.setText(
+                          "📅 Pilih Tanggal Ganti Oli");
 
-                  tanggalText = new TextView(this);
+                  main.addView(tanggal);
+
+
+                  TextView tanggalText =
+                          new TextView(this);
 
                   tanggalText.setText(
                           "Tanggal: " +
-                          formatDate(tanggalServis.getTimeInMillis()));
-
-                  tanggalText.setTextSize(17);
+                          formatTanggal(
+                                  tanggalServis
+                                          .getTimeInMillis()));
 
                   main.addView(tanggalText);
 
-                  tanggalButton.setOnClickListener(v -> {
 
-                      DatePickerDialog dialog =
-                              new DatePickerDialog(
-                                      this,
-                                      (view, year, month, day) -> {
+                  tanggal.setOnClickListener(
+                          v -> {
 
-                                          tanggalServis.set(
-                                                  year,
-                                                  month,
-                                                  day,
-                                                  12,
-                                                  0,
-                                                  0);
+                              DatePickerDialog dialog =
+                                      new DatePickerDialog(
+                                              this,
+                                              (view,
+                                               year,
+                                               month,
+                                               day) -> {
 
-                                          tanggalText.setText(
-                                                  "Tanggal: " +
-                                                  formatDate(
-                                                          tanggalServis
-                                                                  .getTimeInMillis()));
-                                      },
+                                                  tanggalServis.set(
+                                                          year,
+                                                          month,
+                                                          day,
+                                                          12,
+                                                          0,
+                                                          0);
 
-                                      tanggalServis.get(
-                                              Calendar.YEAR),
+                                                  tanggalText.setText(
+                                                          "Tanggal: " +
+                                                          formatTanggal(
+                                                                  tanggalServis
+                                                                          .getTimeInMillis()));
+                                              },
 
-                                      tanggalServis.get(
-                                              Calendar.MONTH),
+                                              tanggalServis.get(
+                                                      Calendar.YEAR),
 
-                                      tanggalServis.get(
-                                              Calendar.DAY_OF_MONTH));
+                                              tanggalServis.get(
+                                                      Calendar.MONTH),
 
-                      dialog.show();
-                  });
+                                              tanggalServis.get(
+                                                      Calendar.DAY_OF_MONTH));
 
-                  Button fotoNota = new Button(this);
+                              dialog.show();
+                          });
 
-                  fotoNota.setText(
-                          "📷 Tambah Foto Nota");
 
-                  main.addView(fotoNota);
+                  Button reminder =
+                          new Button(this);
 
-                  fotoNota.setOnClickListener(v -> {
+                  reminder.setText(
+                          "💾 SIMPAN REMINDER");
 
-                      Intent camera =
-                              new Intent(
-                                      MediaStore.ACTION_IMAGE_CAPTURE);
+                  main.addView(reminder);
 
-                      if (camera.resolveActivity(
-                              getPackageManager()) != null) {
 
-                          startActivityForResult(
-                                  camera,
-                                  PHOTO_REQUEST);
-                      }
-                  });
+                  reminder.setOnClickListener(
+                          v -> simpanReminder());
 
-                  Button simpan = new Button(this);
 
-                  simpan.setText(
-                          "SIMPAN SERVIS");
+                  Button whatsappButton =
+                          new Button(this);
 
-                  main.addView(simpan);
+                  whatsappButton.setText(
+                          "💬 BUKA WHATSAPP");
 
-                  simpan.setOnClickListener(
-                          v -> saveService());
+                  main.addView(
+                          whatsappButton);
 
-                  Button cari = new Button(this);
+
+                  whatsappButton.setOnClickListener(
+                          v -> bukaWhatsApp(
+                                  whatsapp.getText()
+                                          .toString(),
+                                  buatPesan()));
+
+
+                  // =================================================
+                  // RIWAYAT SERVIS BERAT
+                  // =================================================
+
+                  main.addView(
+                          heading(
+                                  "🛠️ RIWAYAT SERVIS / NOTA"));
+
+
+                  TextView riwayatInfo =
+                          new TextView(this);
+
+                  riwayatInfo.setText(
+                          "Nomor Mesin wajib diisi untuk menyimpan " +
+                          "nota dan riwayat servis berat.");
+
+                  main.addView(
+                          riwayatInfo);
+
+
+                  nomorMesin =
+                          field(
+                                  "Nomor Mesin *");
+
+
+                  servisBerat =
+                          field(
+                                  "Jenis servis berat / pekerjaan");
+
+
+                  main.addView(
+                          nomorMesin);
+
+                  main.addView(
+                          servisBerat);
+
+
+                  Button foto =
+                          new Button(this);
+
+                  foto.setText(
+                          "📷 FOTO NOTA SERVIS");
+
+                  main.addView(foto);
+
+
+                  foto.setOnClickListener(
+                          v -> ambilFotoNota());
+
+
+                  Button simpanRiwayat =
+                          new Button(this);
+
+                  simpanRiwayat.setText(
+                          "🧾 SIMPAN RIWAYAT SERVIS");
+
+                  main.addView(
+                          simpanRiwayat);
+
+
+                  simpanRiwayat.setOnClickListener(
+                          v -> simpanRiwayat());
+
+
+                  Button cari =
+                          new Button(this);
 
                   cari.setText(
-                          "🔎 CARI RIWAYAT NOMOR MESIN");
+                          "🔎 CARI NOMOR MESIN");
 
                   main.addView(cari);
 
-                  cari.setOnClickListener(
-                          v -> searchHistory());
 
-                  Button semua = new Button(this);
+                  cari.setOnClickListener(
+                          v -> cariRiwayat());
+
+
+                  Button semua =
+                          new Button(this);
 
                   semua.setText(
-                          "📋 TAMPILKAN SEMUA RIWAYAT");
+                          "📋 SEMUA RIWAYAT");
 
                   main.addView(semua);
 
-                  semua.setOnClickListener(
-                          v -> loadHistory());
 
-                  status = new TextView(this);
+                  semua.setOnClickListener(
+                          v -> tampilkanSemua());
+
+
+                  status =
+                          new TextView(this);
 
                   status.setTextSize(16);
 
+                  status.setPadding(
+                          0,
+                          20,
+                          0,
+                          20);
+
                   main.addView(status);
 
-                  TextView historyTitle = new TextView(this);
 
-                  historyTitle.setText(
-                          "\nRIWAYAT SERVIS");
-
-                  historyTitle.setTextSize(21);
-
-                  main.addView(historyTitle);
-
-                  historyLayout = new LinearLayout(this);
+                  historyLayout =
+                          new LinearLayout(this);
 
                   historyLayout.setOrientation(
                           LinearLayout.VERTICAL);
 
-                  main.addView(historyLayout);
+                  main.addView(
+                          historyLayout);
+
 
                   scroll.addView(main);
 
                   setContentView(scroll);
+
+                  tampilkanSemua();
               }
 
-              String formatDate(long time) {
 
-                  return new SimpleDateFormat(
-                          "dd-MM-yyyy",
-                          Locale.getDefault())
-                          .format(new Date(time));
-              }
+              // =====================================================
+              // SIMPAN REMINDER
+              // =====================================================
 
-              void saveService() {
+              void simpanReminder() {
 
-                  String mesin =
-                          nomorMesin.getText()
-                                  .toString()
-                                  .trim();
-
-                  String nomor =
+                  String wa =
                           whatsapp.getText()
                                   .toString()
                                   .trim();
 
-                  if (mesin.isEmpty()) {
-
-                      status.setText(
-                              "Nomor Mesin wajib diisi.");
-
-                      nomorMesin.requestFocus();
-
-                      return;
-                  }
-
-                  if (nomor.isEmpty()) {
+                  if (wa.isEmpty()) {
 
                       status.setText(
                               "No. WhatsApp wajib diisi.");
@@ -357,297 +608,234 @@ jobs:
                       return;
                   }
 
-                  String cleanNumber =
-                          nomor.replaceAll(
-                                  "[^0-9]",
-                                  "");
 
-                  if (cleanNumber.startsWith("0")) {
+                  String nomor =
+                          bersihkanNomor(
+                                  wa);
 
-                      cleanNumber =
-                              "62" +
-                              cleanNumber.substring(1);
-                  }
 
-                  String history =
-                          "MESIN=" + mesin +
-                          "|NAMA=" +
-                          nama.getText().toString() +
-                          "|WA=" +
-                          cleanNumber +
-                          "|MOTOR=" +
-                          motor.getText().toString() +
-                          "|NOPOL=" +
-                          nopol.getText().toString() +
-                          "|KM=" +
-                          km.getText().toString() +
-                          "|SERVIS=" +
-                          jenisServis.getText().toString() +
-                          "|CATATAN=" +
-                          catatan.getText().toString() +
-                          "|TANGGAL=" +
-                          tanggalServis.getTimeInMillis();
+                  long tanggal =
+                          tanggalServis
+                                  .getTimeInMillis();
 
-                  String old =
-                          pref.getString(
-                                  "HISTORY",
-                                  "");
 
-                  String all =
-                          old.isEmpty()
-                                  ? history
-                                  : old + "\n" + history;
+                  long jatuhTempo =
+                          tanggal +
+                          31L *
+                          24L *
+                          60L *
+                          60L *
+                          1000L;
+
 
                   pref.edit()
+
                           .putString(
-                                  "HISTORY",
-                                  all)
+                                  "REMINDER_NAMA",
+                                  nama.getText()
+                                          .toString())
+
                           .putString(
-                                  "LAST_MESIN",
-                                  mesin)
+                                  "REMINDER_WA",
+                                  nomor)
+
                           .putString(
-                                  "LAST_WA",
-                                  cleanNumber)
+                                  "REMINDER_MOTOR",
+                                  motor.getText()
+                                          .toString())
+
+                          .putString(
+                                  "REMINDER_NOPOL",
+                                  nopol.getText()
+                                          .toString())
+
+                          .putString(
+                                  "REMINDER_KM",
+                                  km.getText()
+                                          .toString())
+
+                          .putString(
+                                  "REMINDER_CATATAN",
+                                  catatan.getText()
+                                          .toString())
+
+                          .putLong(
+                                  "REMINDER_DATE",
+                                  tanggal)
+
+                          .putLong(
+                                  "REMINDER_DUE",
+                                  jatuhTempo)
+
                           .apply();
 
-                  scheduleReminder(
-                          tanggalServis.getTimeInMillis());
+
+                  jadwalkanReminder(
+                          jatuhTempo);
+
 
                   status.setText(
-                          "Data servis tersimpan.\n" +
-                          "Reminder dijadwalkan 31 hari.");
-
-                  loadHistory();
+                          "✅ Reminder tersimpan.\n\n" +
+                          "Notifikasi akan muncul setelah 31 hari.");
               }
 
-              void scheduleReminder(long serviceDate) {
 
-                  long reminder =
-                          serviceDate +
-                          (31L *
-                           24L *
-                           60L *
-                           60L *
-                           1000L);
+              // =====================================================
+              // PESAN WHATSAPP DINAMIS
+              // DATA KOSONG TIDAK DITAMPILKAN
+              // =====================================================
 
-                  Intent intent =
-                          new Intent(
-                                  this,
-                                  ReminderReceiver.class);
+              String buatPesan() {
 
-                  PendingIntent pending =
-                          PendingIntent.getBroadcast(
-                                  this,
-                                  9999,
-                                  intent,
-                                  PendingIntent.FLAG_UPDATE_CURRENT |
-                                  PendingIntent.FLAG_IMMUTABLE);
+                  StringBuilder p =
+                          new StringBuilder();
 
-                  AlarmManager alarm =
-                          (AlarmManager)
-                          getSystemService(
-                                  ALARM_SERVICE);
 
-                  if (alarm != null) {
+                  p.append(
+                          "🏍️ *RR MOTOR*\n\n");
 
-                      alarm.setAndAllowWhileIdle(
-                              AlarmManager.RTC_WAKEUP,
-                              reminder,
-                              pending);
-                  }
-              }
+                  p.append(
+                          "🎁 *PENGECEKAN OLI GRATIS!* 🎁\n\n");
 
-              void searchHistory() {
 
-                  String mesin =
-                          nomorMesin.getText()
+                  String n =
+                          nama.getText()
                                   .toString()
                                   .trim();
 
-                  if (mesin.isEmpty()) {
 
-                      status.setText(
-                              "Masukkan Nomor Mesin untuk mencari.");
+                  if (!n.isEmpty()) {
 
-                      return;
-                  }
-
-                  String all =
-                          pref.getString(
-                                  "HISTORY",
-                                  "");
-
-                  historyLayout.removeAllViews();
-
-                  if (all.isEmpty()) {
-
-                      status.setText(
-                              "Belum ada riwayat.");
-
-                      return;
-                  }
-
-                  boolean found = false;
-
-                  String[] rows =
-                          all.split("\n");
-
-                  for (String row : rows) {
-
-                      if (row.contains(
-                              "MESIN=" + mesin + "|")) {
-
-                          addHistoryRow(row);
-
-                          found = true;
-                      }
-                  }
-
-                  if (!found) {
-
-                      status.setText(
-                              "Riwayat Nomor Mesin tidak ditemukan.");
+                      p.append(
+                              "Halo Bapak/Ibu *")
+                              .append(n)
+                              .append("* 👋\n\n");
 
                   } else {
 
-                      status.setText(
-                              "Riwayat ditemukan.");
+                      p.append(
+                              "Halo Bapak/Ibu 👋\n\n");
                   }
+
+
+                  p.append(
+                          "Kami dari *RR MOTOR* ingin " +
+                          "mengingatkan bahwa kendaraan " +
+                          "Anda sudah memasuki jadwal " +
+                          "pengecekan/penggantian oli. 🔧\n\n");
+
+
+                  String m =
+                          motor.getText()
+                                  .toString()
+                                  .trim();
+
+                  if (!m.isEmpty()) {
+
+                      p.append(
+                              "🏍️ Motor: *")
+                              .append(m)
+                              .append("*\n");
+                  }
+
+
+                  String np =
+                          nopol.getText()
+                                  .toString()
+                                  .trim();
+
+                  if (!np.isEmpty()) {
+
+                      p.append(
+                              "🪪 No. Polisi: *")
+                              .append(np)
+                              .append("*\n");
+                  }
+
+
+                  String k =
+                          km.getText()
+                                  .toString()
+                                  .trim();
+
+                  if (!k.isEmpty()) {
+
+                      p.append(
+                              "📍 KM terakhir: *")
+                              .append(k)
+                              .append("*\n");
+                  }
+
+
+                  p.append(
+                          "\n✨ *Pengecekan kondisi oli GRATIS!*\n\n");
+
+                  p.append(
+                          "Silakan datang ke *RR MOTOR* " +
+                          "untuk pengecekan kondisi oli " +
+                          "dan kendaraan Anda.\n\n");
+
+                  p.append(
+                          "Jangan tunggu sampai terlambat " +
+                          "agar mesin tetap nyaman dan terawat. 😊\n\n");
+
+                  p.append(
+                          "Kami tunggu kedatangannya di *RR MOTOR*.\n\n");
+
+                  p.append(
+                          "Terima kasih 🙏\n");
+
+                  p.append(
+                          "*RR MOTOR*");
+
+
+                  return p.toString();
               }
 
-              void loadHistory() {
 
-                  historyLayout.removeAllViews();
+              // =====================================================
+              // WHATSAPP
+              // =====================================================
 
-                  String all =
-                          pref.getString(
-                                  "HISTORY",
-                                  "");
+              void bukaWhatsApp(
+                      String nomor,
+                      String pesan) {
 
-                  if (all.isEmpty()) {
+                  String wa =
+                          bersihkanNomor(
+                                  nomor);
 
-                      TextView empty =
-                              new TextView(this);
 
-                      empty.setText(
-                              "Belum ada riwayat servis.");
+                  if (wa.isEmpty()) {
 
-                      historyLayout.addView(
-                              empty);
+                      status.setText(
+                              "No. WhatsApp belum diisi.");
 
                       return;
                   }
 
-                  String[] rows =
-                          all.split("\n");
-
-                  for (String row : rows) {
-
-                      addHistoryRow(row);
-                  }
-              }
-
-              void addHistoryRow(String row) {
-
-                  TextView item =
-                          new TextView(this);
-
-                  item.setText(
-                          row.replace("|", "\n"));
-
-                  item.setTextSize(16);
-
-                  item.setPadding(
-                          12,
-                          12,
-                          12,
-                          12);
-
-                  historyLayout.addView(
-                          item);
-
-                  Button wa =
-                          new Button(this);
-
-                  wa.setText(
-                          "💬 Buka WhatsApp");
-
-                  historyLayout.addView(
-                          wa);
-
-                  String number =
-                          getValue(
-                                  row,
-                                  "WA");
-
-                  wa.setOnClickListener(
-                          v -> openWhatsApp(
-                                  number));
-              }
-
-              String getValue(
-                      String row,
-                      String key) {
-
-                  String target =
-                          key + "=";
-
-                  String[] values =
-                          row.split("\\|");
-
-                  for (String value :
-                          values) {
-
-                      if (value.startsWith(
-                              target)) {
-
-                          return value.substring(
-                                  target.length());
-                      }
-                  }
-
-                  return "";
-              }
-
-              void openWhatsApp(
-                      String number) {
-
-                  if (number.isEmpty()) {
-
-                      status.setText(
-                              "Nomor WhatsApp tidak tersedia.");
-
-                      return;
-                  }
-
-                  String message =
-                          "Yth. Bapak/Ibu,\n\n" +
-                          "RR MOTOR mengingatkan " +
-                          "jadwal penggantian oli " +
-                          "kendaraan Anda.\n\n" +
-                          "Mohon melakukan servis " +
-                          "secara berkala.\n\n" +
-                          "Terima kasih.\n" +
-                          "RR MOTOR";
 
                   try {
 
                       String encoded =
                               URLEncoder.encode(
-                                      message,
+                                      pesan,
                                       "UTF-8");
+
 
                       Uri uri =
                               Uri.parse(
                                       "https://wa.me/" +
-                                      number +
+                                      wa +
                                       "?text=" +
                                       encoded);
+
 
                       Intent intent =
                               new Intent(
                                       Intent.ACTION_VIEW,
                                       uri);
+
 
                       startActivity(intent);
 
@@ -658,7 +846,535 @@ jobs:
                   }
               }
 
-              void requestNotificationPermission() {
+
+              String bersihkanNomor(
+                      String nomor) {
+
+                  String hasil =
+                          nomor.replaceAll(
+                                  "[^0-9]",
+                                  "");
+
+
+                  if (hasil.startsWith("0")) {
+
+                      hasil =
+                              "62" +
+                              hasil.substring(1);
+                  }
+
+
+                  return hasil;
+              }
+
+
+              // =====================================================
+              // FOTO NOTA
+              // =====================================================
+
+              void ambilFotoNota() {
+
+                  try {
+
+                      File folder =
+                              new File(
+                                      getFilesDir(),
+                                      "nota");
+
+
+                      if (!folder.exists()) {
+
+                          folder.mkdirs();
+                      }
+
+
+                      File file =
+                              new File(
+                                      folder,
+                                      "nota_" +
+                                      System.currentTimeMillis() +
+                                      ".jpg");
+
+
+                      notaPath =
+                              file.getAbsolutePath();
+
+
+                      Uri uri =
+                              FileProvider.getUriForFile(
+                                      this,
+                                      getPackageName() +
+                                      ".fileprovider",
+                                      file);
+
+
+                      Intent camera =
+                              new Intent(
+                                      android.provider.MediaStore
+                                              .ACTION_IMAGE_CAPTURE);
+
+
+                      camera.putExtra(
+                              android.provider.MediaStore.EXTRA_OUTPUT,
+                              uri);
+
+
+                      camera.addFlags(
+                              Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
+                              Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+
+                      startActivityForResult(
+                              camera,
+                              CAMERA_REQUEST);
+
+                  } catch (Exception e) {
+
+                      status.setText(
+                              "Kamera tidak dapat dibuka: " +
+                              e.getMessage());
+                  }
+              }
+
+
+              @Override
+              protected void onActivityResult(
+                      int requestCode,
+                      int resultCode,
+                      Intent data) {
+
+                  super.onActivityResult(
+                          requestCode,
+                          resultCode,
+                          data);
+
+
+                  if (requestCode ==
+                          CAMERA_REQUEST) {
+
+                      if (resultCode ==
+                              RESULT_OK) {
+
+                          status.setText(
+                                  "✅ Foto nota berhasil disimpan.");
+                      }
+                  }
+              }
+
+
+              // =====================================================
+              // SIMPAN RIWAYAT SERVIS BERAT
+              // =====================================================
+
+              void simpanRiwayat() {
+
+                  String mesin =
+                          nomorMesin.getText()
+                                  .toString()
+                                  .trim();
+
+
+                  if (mesin.isEmpty()) {
+
+                      status.setText(
+                              "Nomor Mesin wajib diisi " +
+                              "untuk riwayat servis.");
+
+                      nomorMesin.requestFocus();
+
+                      return;
+                  }
+
+
+                  String servis =
+                          servisBerat.getText()
+                                  .toString()
+                                  .trim();
+
+
+                  if (servis.isEmpty()) {
+
+                      status.setText(
+                              "Isi jenis servis berat.");
+
+                      return;
+                  }
+
+
+                  String data =
+                          "MESIN=" +
+                          mesin +
+
+                          "|TANGGAL=" +
+                          tanggalServis
+                                  .getTimeInMillis() +
+
+                          "|SERVIS=" +
+                          servis +
+
+                          "|NOTA=" +
+                          notaPath;
+
+
+                  String lama =
+                          pref.getString(
+                                  "RIWAYAT",
+                                  "");
+
+
+                  String semua =
+                          lama.isEmpty()
+                                  ? data
+                                  : lama + "\n" + data;
+
+
+                  pref.edit()
+                          .putString(
+                                  "RIWAYAT",
+                                  semua)
+                          .apply();
+
+
+                  status.setText(
+                          "✅ Riwayat servis tersimpan.");
+
+                  tampilkanSemua();
+              }
+
+
+              // =====================================================
+              // CARI RIWAYAT NOMOR MESIN
+              // =====================================================
+
+              void cariRiwayat() {
+
+                  String mesin =
+                          nomorMesin.getText()
+                                  .toString()
+                                  .trim();
+
+
+                  if (mesin.isEmpty()) {
+
+                      status.setText(
+                              "Masukkan Nomor Mesin.");
+
+                      return;
+                  }
+
+
+                  String semua =
+                          pref.getString(
+                                  "RIWAYAT",
+                                  "");
+
+
+                  historyLayout.removeAllViews();
+
+
+                  if (semua.isEmpty()) {
+
+                      status.setText(
+                              "Belum ada riwayat.");
+
+                      return;
+                  }
+
+
+                  boolean ditemukan =
+                          false;
+
+
+                  for (String baris :
+                          semua.split("\n")) {
+
+                      if (baris.startsWith(
+                              "MESIN=" + mesin + "|")) {
+
+                          tampilkanBaris(
+                                  baris);
+
+                          ditemukan =
+                                  true;
+                      }
+                  }
+
+
+                  if (ditemukan) {
+
+                      status.setText(
+                              "✅ Riwayat ditemukan.");
+
+                  } else {
+
+                      status.setText(
+                              "Riwayat tidak ditemukan.");
+                  }
+              }
+
+
+              // =====================================================
+              // SEMUA RIWAYAT
+              // =====================================================
+
+              void tampilkanSemua() {
+
+                  if (historyLayout ==
+                          null) {
+
+                      return;
+                  }
+
+
+                  historyLayout.removeAllViews();
+
+
+                  String semua =
+                          pref.getString(
+                                  "RIWAYAT",
+                                  "");
+
+
+                  if (semua.isEmpty()) {
+
+                      TextView t =
+                              new TextView(this);
+
+                      t.setText(
+                              "Belum ada riwayat servis.");
+
+                      historyLayout.addView(t);
+
+                      return;
+                  }
+
+
+                  for (String baris :
+                          semua.split("\n")) {
+
+                      tampilkanBaris(
+                              baris);
+                  }
+              }
+
+
+              void tampilkanBaris(
+                      String baris) {
+
+                  TextView t =
+                          new TextView(this);
+
+
+                  String mesin =
+                          nilai(
+                                  baris,
+                                  "MESIN");
+
+
+                  String servis =
+                          nilai(
+                                  baris,
+                                  "SERVIS");
+
+
+                  String nota =
+                          nilai(
+                                  baris,
+                                  "NOTA");
+
+
+                  String tanggal =
+                          nilai(
+                                  baris,
+                                  "TANGGAL");
+
+
+                  String tampilan =
+                          "🔢 Nomor Mesin: " +
+                          mesin +
+                          "\n" +
+
+                          "🔧 Servis: " +
+                          servis +
+                          "\n" +
+
+                          "📅 Tanggal: " +
+                          formatTanggal(
+                                  parseLong(tanggal));
+
+
+                  if (!nota.isEmpty()) {
+
+                      tampilan +=
+                              "\n🧾 Foto nota tersedia";
+                  }
+
+
+                  t.setText(
+                          tampilan);
+
+                  t.setTextSize(16);
+
+                  t.setPadding(
+                          12,
+                          16,
+                          12,
+                          16);
+
+
+                  historyLayout.addView(t);
+
+
+                  if (!nota.isEmpty()) {
+
+                      Button lihat =
+                              new Button(this);
+
+                      lihat.setText(
+                              "🧾 LIHAT FOTO NOTA");
+
+                      historyLayout.addView(
+                              lihat);
+
+
+                      lihat.setOnClickListener(
+                              v -> {
+
+                                  try {
+
+                                      File file =
+                                              new File(nota);
+
+
+                                      Uri uri =
+                                              FileProvider
+                                                      .getUriForFile(
+                                                              this,
+                                                              getPackageName() +
+                                                              ".fileprovider",
+                                                              file);
+
+
+                                      Intent intent =
+                                              new Intent(
+                                                      Intent.ACTION_VIEW);
+
+
+                                      intent.setDataAndType(
+                                              uri,
+                                              "image/*");
+
+
+                                      intent.addFlags(
+                                              Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+
+                                      startActivity(
+                                              intent);
+
+                                  } catch (Exception e) {
+
+                                      status.setText(
+                                              "Foto nota tidak dapat dibuka.");
+                                  }
+                              });
+                  }
+              }
+
+
+              String nilai(
+                      String baris,
+                      String key) {
+
+                  String[] bagian =
+                          baris.split("\\|");
+
+
+                  for (String b :
+                          bagian) {
+
+                      if (b.startsWith(
+                              key + "=")) {
+
+                          return b.substring(
+                                  key.length() + 1);
+                      }
+                  }
+
+
+                  return "";
+              }
+
+
+              long parseLong(
+                      String value) {
+
+                  try {
+
+                      return Long.parseLong(
+                              value);
+
+                  } catch (Exception e) {
+
+                      return 0;
+                  }
+              }
+
+
+              String formatTanggal(
+                      long time) {
+
+                  return new SimpleDateFormat(
+                          "dd-MM-yyyy",
+                          Locale.getDefault())
+                          .format(
+                                  new Date(time));
+              }
+
+
+              // =====================================================
+              // REMINDER 31 HARI
+              // =====================================================
+
+              void jadwalkanReminder(
+                      long waktu) {
+
+                  AlarmManager alarm =
+                          (AlarmManager)
+                          getSystemService(
+                                  ALARM_SERVICE);
+
+
+                  Intent intent =
+                          new Intent(
+                                  this,
+                                  ReminderReceiver.class);
+
+
+                  PendingIntent pending =
+                          PendingIntent.getBroadcast(
+                                  this,
+                                  9876,
+                                  intent,
+                                  PendingIntent.FLAG_UPDATE_CURRENT |
+                                  PendingIntent.FLAG_IMMUTABLE);
+
+
+                  if (alarm != null) {
+
+                      alarm.cancel(
+                              pending);
+
+
+                      alarm.setAndAllowWhileIdle(
+                              AlarmManager.RTC_WAKEUP,
+                              waktu,
+                              pending);
+                  }
+              }
+
+
+              void mintaIzinNotifikasi() {
 
                   if (Build.VERSION.SDK_INT >= 33) {
 
@@ -669,21 +1385,22 @@ jobs:
 
                           requestPermissions(
                                   new String[]{
-                                      Manifest.permission
-                                              .POST_NOTIFICATIONS
+                                          Manifest.permission
+                                                  .POST_NOTIFICATIONS
                                   },
-                                  NOTIFICATION_PERMISSION);
+                                  NOTIFICATION_REQUEST);
                       }
                   }
               }
           }
           EOF
 
+
       # ============================================================
       # REMINDER RECEIVER
       # ============================================================
 
-      - name: Create ReminderReceiver
+      - name: Create ReminderReceiver.java
         run: |
           cat > project/app/src/main/java/com/rrmotor/sms/ReminderReceiver.java <<'EOF'
           package com.rrmotor.sms;
@@ -695,49 +1412,54 @@ jobs:
           public class ReminderReceiver
                   extends BroadcastReceiver {
 
-              private static final String CHANNEL =
+              static final String CHANNEL =
                       "RR_MOTOR_REMINDER";
+
 
               @Override
               public void onReceive(
                       Context context,
                       Intent intent) {
 
-                  createChannel(context);
+                  buatChannel(context);
 
-                  Intent open =
+
+                  Intent buka =
                           new Intent(
                                   context,
                                   MainActivity.class);
 
+
                   PendingIntent pending =
                           PendingIntent.getActivity(
                                   context,
-                                  1234,
-                                  open,
+                                  1111,
+                                  buka,
                                   PendingIntent.FLAG_UPDATE_CURRENT |
                                   PendingIntent.FLAG_IMMUTABLE);
 
-                  Notification.Builder notification;
+
+                  Notification.Builder n;
+
 
                   if (Build.VERSION.SDK_INT >= 26) {
 
-                      notification =
+                      n =
                               new Notification.Builder(
                                       context,
                                       CHANNEL);
 
                   } else {
 
-                      notification =
+                      n =
                               new Notification.Builder(
                                       context);
                   }
 
-                  notification
-                          .setSmallIcon(
-                                  android.R.drawable
-                                          .ic_dialog_info)
+
+                  n.setSmallIcon(
+                          android.R.drawable
+                                  .ic_dialog_info)
 
                           .setContentTitle(
                                   "RR MOTOR")
@@ -748,29 +1470,32 @@ jobs:
                           .setStyle(
                                   new Notification.BigTextStyle()
                                           .bigText(
-                                                  "Reminder servis sudah waktunya. " +
-                                                  "Buka RR MOTOR untuk menghubungi " +
-                                                  "pelanggan melalui WhatsApp."))
+                                                  "Waktunya melakukan " +
+                                                  "pengecekan dan penggantian oli. " +
+                                                  "Pengecekan oli GRATIS di RR MOTOR."))
 
                           .setAutoCancel(true)
 
                           .setContentIntent(
                                   pending);
 
+
                   NotificationManager manager =
                           (NotificationManager)
                           context.getSystemService(
                                   Context.NOTIFICATION_SERVICE);
 
+
                   if (manager != null) {
 
                       manager.notify(
-                              5555,
-                              notification.build());
+                              7777,
+                              n.build());
                   }
               }
 
-              void createChannel(
+
+              void buatChannel(
                       Context context) {
 
                   if (Build.VERSION.SDK_INT >= 26) {
@@ -782,13 +1507,16 @@ jobs:
                                       NotificationManager
                                               .IMPORTANCE_HIGH);
 
+
                       channel.setDescription(
-                              "Notifikasi reminder RR MOTOR");
+                              "Reminder ganti oli RR MOTOR");
+
 
                       NotificationManager manager =
                               (NotificationManager)
                               context.getSystemService(
                                       Context.NOTIFICATION_SERVICE);
+
 
                       if (manager != null) {
 
@@ -800,8 +1528,102 @@ jobs:
           }
           EOF
 
+
       # ============================================================
-      # BUILD
+      # BOOT RECEIVER
+      # AGAR REMINDER TETAP TERJADWAL SETELAH HP RESTART
+      # ============================================================
+
+      - name: Create BootReceiver.java
+        run: |
+          cat > project/app/src/main/java/com/rrmotor/sms/BootReceiver.java <<'EOF'
+          package com.rrmotor.sms;
+
+          import android.app.*;
+          import android.content.*;
+          import android.os.Build;
+
+          public class BootReceiver
+                  extends BroadcastReceiver {
+
+              @Override
+              public void onReceive(
+                      Context context,
+                      Intent intent) {
+
+                  if (!Intent.ACTION_BOOT_COMPLETED
+                          .equals(intent.getAction())) {
+
+                      return;
+                  }
+
+
+                  android.content.SharedPreferences pref =
+                          context.getSharedPreferences(
+                                  "RR_MOTOR_DATA",
+                                  Context.MODE_PRIVATE);
+
+
+                  long waktu =
+                          pref.getLong(
+                                  "REMINDER_DUE",
+                                  0);
+
+
+                  if (waktu <= 0) {
+
+                      return;
+                  }
+
+
+                  Intent reminder =
+                          new Intent(
+                                  context,
+                                  ReminderReceiver.class);
+
+
+                  PendingIntent pending =
+                          PendingIntent.getBroadcast(
+                                  context,
+                                  9876,
+                                  reminder,
+                                  PendingIntent.FLAG_UPDATE_CURRENT |
+                                  PendingIntent.FLAG_IMMUTABLE);
+
+
+                  AlarmManager alarm =
+                          (AlarmManager)
+                          context.getSystemService(
+                                  Context.ALARM_SERVICE);
+
+
+                  if (alarm != null) {
+
+                      alarm.setAndAllowWhileIdle(
+                              AlarmManager.RTC_WAKEUP,
+                              waktu,
+                              pending);
+                  }
+              }
+          }
+          EOF
+
+
+      # ============================================================
+      # CARI FILE JAVA DAN KOTLIN
+      # ============================================================
+
+      - name: Check source files
+        run: |
+          echo "===== FILE KOTLIN ====="
+          find project -type f -name "*.kt" -print || true
+
+          echo "===== FILE JAVA ====="
+          find project -type f -name "*.java" -print || true
+
+
+      # ============================================================
+      # JAVA 17
       # ============================================================
 
       - name: Setup Java
@@ -810,18 +1632,24 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+
+      # ============================================================
+      # BUILD APK
+      # ============================================================
+
       - name: Build APK
         working-directory: project
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew clean assembleDebug --no-daemon
+
 
       # ============================================================
-      # APK ARTIFACT
+      # UPLOAD APK
       # ============================================================
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RR-MOTOR-V2-APK
+          name: RR-MOTOR-FINAL-APK
           path: project/**/build/outputs/apk/debug/*.apk
