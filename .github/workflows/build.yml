@@ -17,45 +17,367 @@ jobs:
       - name: Extract project
         run: unzip -o RR_MOTOR_COMPLETE.zip -d project
 
-      - name: Fix SMS permission and runtime request
+      - name: Replace Android Manifest
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          cat > project/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-          manifest = Path("project/app/src/main/AndroidManifest.xml")
-          text = manifest.read_text()
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-          permission = '<uses-permission android:name="android.permission.SEND_SMS"/>'
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="RR MOTOR"
+                  android:allowBackup="false">
 
-          if 'android.permission.SEND_SMS' not in text:
-              text = text.replace('<application', permission + '\n    <application', 1)
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
 
-          manifest.write_text(text)
+                  <receiver
+                      android:name=".ReminderReceiver"
+                      android:exported="false" />
 
-          activity = Path("project/app/src/main/java/com/rrmotor/sms/MainActivity.java")
-          text = activity.read_text()
+              </application>
 
-          text = text.replace(
-              'if(checkSelfPermission(Manifest.permission.SEND_SMS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.SEND_SMS},10);',
-              '''if (android.os.Build.VERSION.SDK_INT >= 23 &&
-                  checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
-                  requestPermissions(
-                      new String[]{Manifest.permission.SEND_SMS},
-                      10
-                  );
-              }'''
-          )
+          </manifest>
+          EOF
 
-          activity.write_text(text)
-          PY
-
-      - name: Show SMS configuration
+      - name: Create WhatsApp Reminder app
         run: |
-          echo "===== MANIFEST ====="
-          cat project/app/src/main/AndroidManifest.xml
-          echo ""
-          echo "===== MAIN ACTIVITY ====="
-          cat project/app/src/main/java/com/rrmotor/sms/MainActivity.java
+          cat > project/app/src/main/java/com/rrmotor/sms/MainActivity.java <<'EOF'
+          package com.rrmotor.sms;
+
+          import android.Manifest;
+          import android.app.*;
+          import android.content.*;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.*;
+          import android.provider.Settings;
+          import android.view.*;
+          import android.widget.*;
+          import java.net.URLEncoder;
+          import java.text.SimpleDateFormat;
+          import java.util.*;
+
+          public class MainActivity extends Activity {
+
+              EditText nama, hp, mesin, motor, nopol, km, catatan;
+              TextView status;
+              Button simpan, whatsapp;
+
+              static final int NOTIFICATION_PERMISSION = 100;
+
+              @Override
+              public void onCreate(Bundle b) {
+                  super.onCreate(b);
+
+                  LinearLayout l = new LinearLayout(this);
+                  l.setOrientation(LinearLayout.VERTICAL);
+                  l.setPadding(24,24,24,24);
+
+                  TextView title = new TextView(this);
+                  title.setText("RR MOTOR\\nReminder Ganti Oli");
+                  title.setTextSize(25);
+                  l.addView(title);
+
+                  mesin = field("Nomor Mesin *");
+                  nama = field("Nama pelanggan (opsional)");
+                  hp = field("No. WhatsApp *");
+                  motor = field("Jenis motor (opsional)");
+                  nopol = field("No. polisi (opsional)");
+                  km = field("KM (opsional)");
+                  catatan = field("Catatan (opsional)");
+
+                  l.addView(mesin);
+                  l.addView(nama);
+                  l.addView(hp);
+                  l.addView(motor);
+                  l.addView(nopol);
+                  l.addView(km);
+                  l.addView(catatan);
+
+                  Button tanggal = new Button(this);
+                  tanggal.setText("Pilih tanggal ganti oli");
+                  l.addView(tanggal);
+
+                  TextView tanggalText = new TextView(this);
+                  tanggalText.setText("Tanggal: " +
+                          new SimpleDateFormat("dd-MM-yyyy",
+                                  Locale.getDefault()).format(new Date()));
+                  tanggalText.setTextSize(18);
+                  l.addView(tanggalText);
+
+                  simpan = new Button(this);
+                  simpan.setText("Simpan & Jadwalkan Reminder 31 Hari");
+                  l.addView(simpan);
+
+                  whatsapp = new Button(this);
+                  whatsapp.setText("Buka WhatsApp & Kirim");
+                  whatsapp.setVisibility(View.GONE);
+                  l.addView(whatsapp);
+
+                  status = new TextView(this);
+                  status.setTextSize(17);
+                  l.addView(status);
+
+                  setContentView(l);
+
+                  final Calendar tanggalServis = Calendar.getInstance();
+
+                  tanggal.setOnClickListener(v -> {
+                      DatePickerDialog dialog = new DatePickerDialog(
+                              this,
+                              (view, year, month, day) -> {
+                                  tanggalServis.set(year, month, day, 12, 0, 0);
+                                  tanggalText.setText(
+                                          "Tanggal: " +
+                                          new SimpleDateFormat("dd-MM-yyyy",
+                                                  Locale.getDefault())
+                                                  .format(tanggalServis.getTime()));
+                              },
+                              tanggalServis.get(Calendar.YEAR),
+                              tanggalServis.get(Calendar.MONTH),
+                              tanggalServis.get(Calendar.DAY_OF_MONTH)
+                      );
+                      dialog.show();
+                  });
+
+                  simpan.setOnClickListener(v ->
+                          saveReminder(tanggalServis.getTimeInMillis()));
+
+                  whatsapp.setOnClickListener(v -> openWhatsApp());
+
+                  checkNotificationPermission();
+                  showPendingReminder();
+              }
+
+              EditText field(String hint) {
+                  EditText e = new EditText(this);
+                  e.setHint(hint);
+                  e.setSingleLine(true);
+                  return e;
+              }
+
+              void checkNotificationPermission() {
+                  if (Build.VERSION.SDK_INT >= 33 &&
+                      checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                      != PackageManager.PERMISSION_GRANTED) {
+
+                      requestPermissions(
+                              new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                              NOTIFICATION_PERMISSION);
+                  }
+              }
+
+              void saveReminder(long serviceDate) {
+
+                  String nomorMesin = mesin.getText().toString().trim();
+                  String nomor = hp.getText().toString().trim();
+
+                  if (nomorMesin.isEmpty()) {
+                      status.setText("Nomor Mesin wajib diisi.");
+                      mesin.requestFocus();
+                      return;
+                  }
+
+                  if (nomor.isEmpty()) {
+                      status.setText("No. WhatsApp wajib diisi.");
+                      hp.requestFocus();
+                      return;
+                  }
+
+                  String cleanNumber = nomor.replaceAll("[^0-9]", "");
+
+                  if (cleanNumber.startsWith("0")) {
+                      cleanNumber = "62" + cleanNumber.substring(1);
+                  }
+
+                  String message =
+                          "Yth. Bapak/Ibu " +
+                          nama.getText().toString().trim() +
+                          ",%0A%0A" +
+                          "RR MOTOR mengingatkan jadwal penggantian oli kendaraan Anda.%0A%0A" +
+                          "Nomor Mesin: " + nomorMesin + "%0A" +
+                          "Motor: " + motor.getText().toString().trim() + "%0A" +
+                          "No. Polisi: " + nopol.getText().toString().trim() + "%0A" +
+                          "KM: " + km.getText().toString().trim() + "%0A%0A" +
+                          "Mohon melakukan penggantian oli secara berkala.%0A%0A" +
+                          "Terima kasih.%0A" +
+                          "RR MOTOR";
+
+                  getPreferences(MODE_PRIVATE)
+                          .edit()
+                          .putString("wa_number", cleanNumber)
+                          .putString("wa_message", message)
+                          .putString("engine_number", nomorMesin)
+                          .putLong("service_date", serviceDate)
+                          .apply();
+
+                  scheduleReminder(serviceDate + (31L * 24L * 60L * 60L * 1000L));
+
+                  status.setText(
+                          "Data tersimpan. Reminder WhatsApp dijadwalkan 31 hari lagi.");
+
+              }
+
+              void scheduleReminder(long reminderTime) {
+
+                  Intent intent = new Intent(this, ReminderReceiver.class);
+
+                  PendingIntent pending = PendingIntent.getBroadcast(
+                          this,
+                          12345,
+                          intent,
+                          PendingIntent.FLAG_UPDATE_CURRENT |
+                          PendingIntent.FLAG_IMMUTABLE);
+
+                  AlarmManager alarm =
+                          (AlarmManager)getSystemService(ALARM_SERVICE);
+
+                  if (alarm != null) {
+                      alarm.setAndAllowWhileIdle(
+                              AlarmManager.RTC_WAKEUP,
+                              Math.max(reminderTime, System.currentTimeMillis() + 1000),
+                              pending);
+                  }
+              }
+
+              void showPendingReminder() {
+
+                  String number = getPreferences(MODE_PRIVATE)
+                          .getString("wa_number", "");
+
+                  if (!number.isEmpty()) {
+                      whatsapp.setVisibility(View.VISIBLE);
+                  }
+              }
+
+              void openWhatsApp() {
+
+                  String number = getPreferences(MODE_PRIVATE)
+                          .getString("wa_number", "");
+
+                  String message = getPreferences(MODE_PRIVATE)
+                          .getString("wa_message", "");
+
+                  if (number.isEmpty()) {
+                      status.setText("Belum ada reminder yang tersimpan.");
+                      return;
+                  }
+
+                  try {
+                      Uri uri = Uri.parse(
+                              "https://wa.me/" + number +
+                              "?text=" + message);
+
+                      Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                      startActivity(intent);
+
+                  } catch (Exception e) {
+                      status.setText("WhatsApp tidak dapat dibuka.");
+                  }
+              }
+          }
+          EOF
+
+      - name: Create ReminderReceiver
+        run: |
+          cat > project/app/src/main/java/com/rrmotor/sms/ReminderReceiver.java <<'EOF'
+          package com.rrmotor.sms;
+
+          import android.app.*;
+          import android.content.*;
+          import android.os.Build;
+
+          public class ReminderReceiver extends BroadcastReceiver {
+
+              private static final String CHANNEL_ID = "rr_motor_reminder";
+
+              @Override
+              public void onReceive(Context context, Intent intent) {
+
+                  createChannel(context);
+
+                  Intent openApp =
+                          new Intent(context, MainActivity.class);
+
+                  PendingIntent pending =
+                          PendingIntent.getActivity(
+                                  context,
+                                  9876,
+                                  openApp,
+                                  PendingIntent.FLAG_UPDATE_CURRENT |
+                                  PendingIntent.FLAG_IMMUTABLE);
+
+                  Notification.Builder builder;
+
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      builder = new Notification.Builder(
+                              context, CHANNEL_ID);
+                  } else {
+                      builder = new Notification.Builder(context);
+                  }
+
+                  builder.setSmallIcon(
+                          android.R.drawable.ic_dialog_info)
+                          .setContentTitle(
+                                  "RR MOTOR - Reminder Ganti Oli")
+                          .setContentText(
+                                  "Waktunya mengingatkan pelanggan melalui WhatsApp.")
+                          .setStyle(new Notification.BigTextStyle()
+                                  .bigText(
+                                      "Reminder ganti oli sudah waktunya. " +
+                                      "Tekan notifikasi untuk membuka RR MOTOR " +
+                                      "dan kirim pesan melalui WhatsApp."))
+                          .setAutoCancel(true)
+                          .setContentIntent(pending);
+
+                  NotificationManager manager =
+                          (NotificationManager)
+                          context.getSystemService(
+                                  Context.NOTIFICATION_SERVICE);
+
+                  if (manager != null) {
+                      manager.notify(1001, builder.build());
+                  }
+              }
+
+              private void createChannel(Context context) {
+
+                  if (Build.VERSION.SDK_INT >= 26) {
+
+                      NotificationChannel channel =
+                              new NotificationChannel(
+                                      CHANNEL_ID,
+                                      "Reminder RR MOTOR",
+                                      NotificationManager.IMPORTANCE_HIGH);
+
+                      channel.setDescription(
+                              "Pemberitahuan jadwal reminder ganti oli");
+
+                      NotificationManager manager =
+                              (NotificationManager)
+                              context.getSystemService(
+                                      Context.NOTIFICATION_SERVICE);
+
+                      if (manager != null) {
+                          manager.createNotificationChannel(channel);
+                      }
+                  }
+              }
+          }
+          EOF
+
+      - name: Remove old SMS code
+        run: |
+          echo "SMS permission is not included."
+          echo "Reminder uses WhatsApp."
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -72,5 +394,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RR-MOTOR-APK
+          name: RR-MOTOR-WHATSAPP-APK
           path: project/**/build/outputs/apk/debug/*.apk
