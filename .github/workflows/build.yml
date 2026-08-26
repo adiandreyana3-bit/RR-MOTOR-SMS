@@ -1,282 +1,147 @@
-
-
-
-hari ini 5.16
-1000194126.jpg
-sudah jadi aplikasi , cuma saat menyimpan reminder dan riwayat servis , tidak bisa mencari lagi remimder dan servis yang tersimpan
-
-1000194127.jpg
-
-Teks yang ditempel (1).txt
-Dokumen
-
-Ya 👍 kita pakai ikon saja. Jangan hapus rr_motor_icon.png.
-
-Dari gambar terakhir, file rr_motor_icon.png sudah ada di repository, jadi kita tinggal memastikan build.yml memasukkannya ke aplikasi.
-
-Di build.yml yang sekarang, bagian ini sudah benar:
-
-- name: Prepare Android resources
-  run: |
-    mkdir -p project/app/src/main/res/drawable
-    if [ -f rr_motor_icon.png ]; then
-      cp rr_motor_icon.png project/app/src/main/res/drawable/rr_motor_icon.png
-      echo "Icon RR MOTOR ditemukan."
-    else
-      echo "Icon tidak ditemukan."
-    fi
-Jadi jangan ubah lagi bagian ikon tersebut.
-
-Sekarang lakukan ini
-Kembali ke Actions.
-
-Pilih workflow Build APK RR MOTOR FINAL.
-
-Tekan Run workflow.
-
-Pilih branch main.
-
-Tekan Run workflow.
-
-Tunggu sampai muncul tanda ✅ hijau.
-
-Kalau sudah hijau, buka hasil build dan cari Artifacts → RR-MOTOR-APK.
-
-Jangan hapus rr_motor_icon.png dari repository.
-
-Kalau build yang baru masih merah, kirim screenshot bagian merahnya kepada saya. Kita perbaiki error yang tepat, tanpa mengubah fitur aplikasi yang sudah jadi.
-
-
-kan sudah hijau yang ini , masalah nya riwayat remimder dan riwayat servis tidak bisa di buka dan tidak ada 
-
-Ya, saya sudah cek sumber kode yang tersimpan. Masalahnya bukan icon. Icon sudah beres.
-
-Saya menemukan penyebabnya:
-
-Reminder hanya disimpan sebagai 1 data terakhir, memakai kunci REMINDER_NAMA, REMINDER_WA, REMINDER_DATE, dan seterusnya. Jadi belum ada daftar/riwayat reminder yang bisa dibuka kembali. 
-
-
-Riwayat servis sebenarnya disimpan di RIWAYAT, tetapi fitur yang ada hanya menampilkan riwayat saat halaman dibuka dan mencari berdasarkan nomor mesin. 
-
-
-Jadi kita perlu memperbaiki penyimpanan dan tampilan riwayat, bukan mengutak-atik icon.
-
-Yang akan kita buat
-Setelah diperbaiki, aplikasi akan punya:
-
-RIWAYAT REMINDER
-
-Semua reminder yang pernah disimpan tetap ada.
-
-Bisa dibuka kembali.
-
-Bisa dicari berdasarkan No. WhatsApp.
-
-Data tidak hilang ketika membuat reminder baru.
-
-RIWAYAT SERVIS
-
-Semua servis tetap tersimpan.
-
-Bisa dicari dengan Nomor Mesin.
-
-Bisa melihat tanggal, jenis servis, dan nota.
-
-Bisa membuka semua riwayat.
-
-Jadi kita fokus memperbaiki bagian penyimpanan/riwayat saja. Icon tidak perlu disentuh lagi.
-
-Kalau kita lanjut, saya akan berikan kode build.yml lengkap yang langsung mengganti bagian MainActivity.java, sehingga Anda tinggal salin-tempel satu kali ke GitHub.
-
-
-ya
-
-Ya. Saya sudah buat build.yml final dengan perbaikan utama:
-
-Reminder sekarang disimpan sebagai riwayat, bukan hanya 1 reminder terakhir.
-
-Ada tombol 📋 RIWAYAT REMINDER.
-
-Ada tombol 🔎 CARI REMINDER NO. WHATSAPP.
-
-Riwayat servis tetap menggunakan Nomor Mesin dan tetap tersimpan. 
-
-
-Icon tetap dipakai, jadi tidak mengubah bagian yang sudah berhasil.
-
-File sudah saya cek dan format YAML valid.
-
-Download build.yml final
-📥 Download build.yml final RR MOTOR
-
-Setelah download
-Di GitHub:
-
-Buka .github/workflows/build.yml
-
-Tekan ✏️ Edit
-
-Hapus semua isi lama
-
-Buka file build.yml yang saya buat di atas, salin semua isinya
-
-Tempel ke GitHub
-
-Tekan Commit changes
-
-Masuk Actions
-
-Jalankan Build APK RR MOTOR FINAL
-
-Jangan ubah file MainActivity.java lain dulu. Kita coba build ini dulu supaya fokus ke masalah riwayat reminder dan riwayat servis.
-
-
-build.yml
-Kode
-
-
-
-Tidak ada file yang dipilih
-Pustaka
-/
-build.yml
-
-
-1310
-1311
-1312
-1313
-1314
-1315
-1316
-1317
-1318
-1319
-1320
-1321
-1322
-1323
-1324
-1325
-1326
-1327
-1328
-1329
-1330
-1331
-1332
-1333
-1334
-1335
-1336
-1337
-1338
-1339
-1340
-1341
-1342
-1343
-1344
-1345
-1346
-1347
-1348
-1349
-1350
-1351
-1352
-1353
-1354
-1355
-1356
-1357
-1358
-1359
-1360
-1361
-1362
-1363
-1364
-1365
-1366
-1367
-1368
-1369
-1370
-1371
-1372
-1373
-1374
-1375
-1376
-1377
-1378
-
-                      status.setText(
-                              "Riwayat tidak ditemukan.");
-                  }
-              }
-
-
-              // =====================================================
-              // SEMUA RIWAYAT
-              // =====================================================
-
-              void tampilkanSemua() {
-
-                  if (historyLayout ==
-                          null) {
-
-                      return;
-                  }
-
-
-                  historyLayout.removeAllViews();
-
-
-                  String semua =
-                          pref.getString(
-                                  "RIWAYAT",
-                                  "");
-
-
-                  if (semua.isEmpty()) {
-
-                      TextView t =
-                              new TextView(this);
-
-                      t.setText(
-                              "Belum ada riwayat servis.");
-
-                      historyLayout.addView(t);
-
-                      return;
-                  }
-
-
-                  for (String baris :
-                          semua.split("\n")) {
-
-                      tampilkanBaris(
-                              baris);
-                  }
-              }
-
-
-              void tampilkanBaris(
-                      String baris) {
-
-                  TextView t =
-                          new TextView(this);
-
-
-                  String mesin =
-                          nilai(
-                                  baris,
-                                  "MESIN");
-
-
-                  String servis =
-                          nilai(
-                                  baris,
-                                  "SERVIS");
+name: Build APK RR MOTOR FINAL
+
+on:
+workflow_dispatch:
+push:
+branches:
+- main
+
+jobs:
+build:
+runs-on: ubuntu-latest
+
+```
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
+
+  - name: Extract project
+    run: |
+      rm -rf project
+      unzip -o RR_MOTOR_COMPLETE.zip -d project
+
+  - name: Prepare Android resources
+    run: |
+      mkdir -p project/app/src/main/res/drawable
+      mkdir -p project/app/src/main/res/xml
+
+  - name: Install RR MOTOR icon
+    run: |
+      if [ -f rr_motor_icon.png ]; then
+        cp rr_motor_icon.png project/app/src/main/res/drawable/rr_motor_icon.png
+      else
+        echo "ERROR: rr_motor_icon.png tidak ditemukan"
+        exit 1
+      fi
+
+  - name: Create AndroidManifest.xml
+    run: |
+      cat > project/app/src/main/AndroidManifest.xml <<'EOF'
+      <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+          <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+          <uses-permission android:name="android.permission.CAMERA" />
+          <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+          <application
+              android:theme="@style/AppTheme"
+              android:label="RR MOTOR"
+              android:icon="@drawable/rr_motor_icon"
+              android:allowBackup="false"
+              android:supportsRtl="true">
+
+              <activity
+                  android:name=".MainActivity"
+                  android:exported="true">
+                  <intent-filter>
+                      <action android:name="android.intent.action.MAIN" />
+                      <category android:name="android.intent.category.LAUNCHER" />
+                  </intent-filter>
+              </activity>
+
+              <receiver
+                  android:name=".ReminderReceiver"
+                  android:exported="false" />
+
+              <receiver
+                  android:name=".BootReceiver"
+                  android:exported="true">
+                  <intent-filter>
+                      <action android:name="android.intent.action.BOOT_COMPLETED" />
+                  </intent-filter>
+              </receiver>
+
+              <provider
+                  android:name="androidx.core.content.FileProvider"
+                  android:authorities="${applicationId}.fileprovider"
+                  android:exported="false"
+                  android:grantUriPermissions="true">
+                  <meta-data
+                      android:name="android.support.FILE_PROVIDER_PATHS"
+                      android:resource="@xml/file_paths" />
+              </provider>
+
+          </application>
+      </manifest>
+      EOF
+
+  - name: Create file_paths.xml
+    run: |
+      cat > project/app/src/main/res/xml/file_paths.xml <<'EOF'
+      <?xml version="1.0" encoding="utf-8"?>
+      <paths xmlns:android="http://schemas.android.com/apk/res/android">
+          <files-path name="nota" path="nota/" />
+      </paths>
+      EOF
+
+  - name: Configure app build.gradle
+    run: |
+      cat > project/app/build.gradle <<'EOF'
+      plugins {
+          id 'com.android.application'
+      }
+
+      android {
+          namespace 'com.rrmotor.sms'
+          compileSdk 35
+
+          defaultConfig {
+              applicationId 'com.rrmotor.sms'
+              minSdk 23
+              targetSdk 35
+              versionCode 3
+              versionName '3.0'
+          }
+      }
+
+      dependencies {
+          implementation 'androidx.core:core:1.15.0'
+      }
+      EOF
+
+  - name: Check source files
+    run: |
+      echo "===== FILE KOTLIN ====="
+      find project -type f -name "*.kt" -print || true
+      echo "===== FILE JAVA ====="
+      find project -type f -name "*.java" -print || true
+
+  - name: Setup Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: '17'
+
+  - name: Build APK
+    working-directory: project
+    run: |
+      chmod +x gradlew
+      ./gradlew clean assembleDebug --no-daemon --stacktrace
+
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: RR-MOTOR-FINAL-APK
+      path: project/**/build/outputs/apk/debug/*.apk
+      if-no-files-found: error
+```
