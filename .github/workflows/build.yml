@@ -1,155 +1,62 @@
-```yaml
 name: Build APK RR MOTOR FINAL
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+workflow_dispatch:
+push:
+branches:
+- main
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+```
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
 
-      - name: Extract project
-        run: |
-          rm -rf project
-          unzip -o RR_MOTOR_COMPLETE.zip -d project
+  - name: Extract project
+    run: |
+      rm -rf project
+      unzip -o RR_MOTOR_COMPLETE.zip -d project
 
-      - name: Prepare Android resources
-        run: |
-          mkdir -p project/app/src/main/res/drawable
-          mkdir -p project/app/src/main/res/xml
+  - name: Prepare Android resources
+    run: |
+      mkdir -p project/app/src/main/res/drawable
+      mkdir -p project/app/src/main/res/xml
 
-      - name: Install RR MOTOR icon
-        run: |
-          if [ -f rr_motor_icon.png ]; then
-            cp rr_motor_icon.png project/app/src/main/res/drawable/rr_motor_icon.png
-            echo "Icon RR MOTOR ditemukan."
-          else
-            echo "Icon tidak ditemukan, lanjut tanpa icon khusus."
-          fi
+  - name: Install RR MOTOR icon
+    run: |
+      if [ -f rr_motor_icon.png ]; then
+        cp rr_motor_icon.png project/app/src/main/res/drawable/rr_motor_icon.png
+      else
+        echo "Icon tidak ditemukan, lanjut."
+      fi
 
-      - name: Create AndroidManifest.xml
-        run: |
-          cat > project/app/src/main/AndroidManifest.xml <<'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  - name: Check source files
+    run: |
+      echo "===== JAVA ====="
+      find project -type f -name "*.java" -print || true
+      echo "===== KOTLIN ====="
+      find project -type f -name "*.kt" -print || true
 
-              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-              <uses-permission android:name="android.permission.CAMERA" />
-              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  - name: Setup Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: "17"
+      cache: gradle
 
-              <application
-                  android:theme="@style/AppTheme"
-                  android:label="RR MOTOR"
-                  android:icon="@drawable/rr_motor_icon"
-                  android:allowBackup="false"
-                  android:supportsRtl="true">
+  - name: Build APK
+    working-directory: project
+    run: |
+      chmod +x gradlew
+      ./gradlew clean assembleDebug --no-daemon --stacktrace
 
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true">
-
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-
-                  </activity>
-
-                  <receiver
-                      android:name=".ReminderReceiver"
-                      android:exported="false" />
-
-                  <receiver
-                      android:name=".BootReceiver"
-                      android:exported="true">
-
-                      <intent-filter>
-                          <action android:name="android.intent.action.BOOT_COMPLETED" />
-                      </intent-filter>
-
-                  </receiver>
-
-                  <provider
-                      android:name="androidx.core.content.FileProvider"
-                      android:authorities="${applicationId}.fileprovider"
-                      android:exported="false"
-                      android:grantUriPermissions="true">
-
-                      <meta-data
-                          android:name="android.support.FILE_PROVIDER_PATHS"
-                          android:resource="@xml/file_paths" />
-
-                  </provider>
-
-              </application>
-
-          </manifest>
-          EOF
-
-      - name: Create file_paths.xml
-        run: |
-          cat > project/app/src/main/res/xml/file_paths.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <paths xmlns:android="http://schemas.android.com/apk/res/android">
-              <files-path name="nota" path="nota/" />
-          </paths>
-          EOF
-
-      - name: Configure app build.gradle
-        run: |
-          cat > project/app/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application'
-          }
-
-          android {
-              namespace 'com.rrmotor.sms'
-              compileSdk 35
-
-              defaultConfig {
-                  applicationId 'com.rrmotor.sms'
-                  minSdk 23
-                  targetSdk 35
-                  versionCode 3
-                  versionName '3.0'
-              }
-          }
-
-          dependencies {
-              implementation 'androidx.core:core:1.15.0'
-          }
-          EOF
-
-      - name: Check source files
-        run: |
-          echo "===== FILE KOTLIN ====="
-          find project -type f -name "*.kt" -print || true
-
-          echo "===== FILE JAVA ====="
-          find project -type f -name "*.java" -print || true
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Build APK
-        working-directory: project
-        run: |
-          chmod +x gradlew
-          ./gradlew clean assembleDebug --no-daemon --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: RR-MOTOR-FINAL-APK
-          path: project/**/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: RR-MOTOR-FINAL-APK
+      path: project/**/build/outputs/apk/debug/*.apk
+      if-no-files-found: error
 ```
