@@ -19,17 +19,17 @@ jobs:
 
     steps:
 
-      # =========================================================
+      # =====================================================
       # 1. CHECKOUT
-      # =========================================================
+      # =====================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # =========================================================
+      # =====================================================
       # 2. JAVA 17
-      # =========================================================
+      # =====================================================
 
       - name: Setup Java 17
         uses: actions/setup-java@v5
@@ -38,9 +38,9 @@ jobs:
           java-version: '17'
 
 
-      # =========================================================
-      # 3. GRADLE
-      # =========================================================
+      # =====================================================
+      # 3. SETUP GRADLE
+      # =====================================================
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -48,9 +48,9 @@ jobs:
           gradle-version: '8.10.2'
 
 
-      # =========================================================
-      # 4. BUAT FOLDER
-      # =========================================================
+      # =====================================================
+      # 4. BUAT FOLDER PROJECT
+      # =====================================================
 
       - name: Create project folders
         shell: bash
@@ -62,120 +62,107 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/drawable
-          mkdir -p app/src/main/res/mipmap-hdpi
-          mkdir -p app/src/main/res/mipmap-mdpi
-          mkdir -p app/src/main/res/mipmap-xhdpi
-          mkdir -p app/src/main/res/mipmap-xxhdpi
-          mkdir -p app/src/main/res/mipmap-xxxhdpi
 
 
-      # =========================================================
-      # 5. SETTINGS.GRADLE
-      # =========================================================
+      # =====================================================
+      # 5. SETTINGS GRADLE
+      # =====================================================
 
       - name: Create settings.gradle
         shell: bash
         run: |
 
           cat > settings.gradle <<'EOF'
-
           pluginManagement {
-
               repositories {
-
                   google()
                   mavenCentral()
                   gradlePluginPortal()
-
               }
           }
-
 
           dependencyResolutionManagement {
-
-              repositoriesMode.set(
-                  RepositoriesMode.FAIL_ON_PROJECT_REPOS
-              )
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
 
               repositories {
-
                   google()
                   mavenCentral()
-
               }
           }
-
 
           rootProject.name = "RR-MOTOR-SMS"
 
-          include(":app")
-
+          include ":app"
           EOF
 
 
-      # =========================================================
-      # 6. ROOT BUILD.GRADLE
-      # =========================================================
+      # =====================================================
+      # 6. ROOT BUILD GRADLE
+      # =====================================================
+      # FIX:
+      # Tidak menggunakan plugins {} yang menyebabkan error.
+      # =====================================================
 
       - name: Create root build.gradle
         shell: bash
         run: |
 
           cat > build.gradle <<'EOF'
+          buildscript {
 
-          plugins {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
 
-              id 'com.android.application'
-                  version '8.7.3'
-                  apply false
-
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.7.3'
+              }
           }
 
+          allprojects {
+
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 7. GRADLE PROPERTIES
-      # =========================================================
+      # =====================================================
 
       - name: Create gradle.properties
         shell: bash
         run: |
 
           cat > gradle.properties <<'EOF'
-
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 
           android.useAndroidX=true
 
           android.nonTransitiveRClass=true
-
           EOF
 
 
-      # =========================================================
-      # 8. APP BUILD.GRADLE
-      # =========================================================
+      # =====================================================
+      # 8. APP BUILD GRADLE
+      # =====================================================
 
       - name: Create app build.gradle
         shell: bash
         run: |
 
           cat > app/build.gradle <<'EOF'
-
-          plugins {
-
-              id 'com.android.application'
-
-          }
-
+          apply plugin: 'com.android.application'
 
           android {
 
               namespace 'com.rrmotor.sms'
 
               compileSdk 35
-
 
               defaultConfig {
 
@@ -185,12 +172,10 @@ jobs:
 
                   targetSdk 35
 
-                  versionCode 4
+                  versionCode 5
 
-                  versionName "4.0"
-
+                  versionName "5.0"
               }
-
 
               buildTypes {
 
@@ -199,48 +184,38 @@ jobs:
                       minifyEnabled false
 
                       shrinkResources false
-
                   }
-
               }
-
 
               compileOptions {
 
                   sourceCompatibility JavaVersion.VERSION_17
 
                   targetCompatibility JavaVersion.VERSION_17
-
               }
-
           }
-
           EOF
 
 
-      # =========================================================
-      # 9. MANIFEST
-      # =========================================================
+      # =====================================================
+      # 9. ANDROID MANIFEST
+      # =====================================================
 
       - name: Create AndroidManifest.xml
         shell: bash
         run: |
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
-
           <?xml version="1.0" encoding="utf-8"?>
 
           <manifest
               xmlns:android="http://schemas.android.com/apk/res/android">
 
-
               <uses-permission
                   android:name="android.permission.POST_NOTIFICATIONS" />
 
-
               <uses-permission
                   android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
 
               <application
 
@@ -256,13 +231,11 @@ jobs:
 
                   android:theme="@style/AppTheme">
 
-
                   <activity
 
                       android:name=".MainActivity"
 
                       android:exported="true">
-
 
                       <intent-filter>
 
@@ -274,16 +247,13 @@ jobs:
 
                       </intent-filter>
 
-
                   </activity>
-
 
                   <receiver
 
                       android:name=".ReminderReceiver"
 
                       android:exported="false" />
-
 
                   <receiver
 
@@ -292,7 +262,6 @@ jobs:
                       android:enabled="true"
 
                       android:exported="true">
-
 
                       <intent-filter>
 
@@ -304,27 +273,23 @@ jobs:
 
                       </intent-filter>
 
-
                   </receiver>
-
 
               </application>
 
           </manifest>
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 10. ICON RR MOTOR
-      # =========================================================
+      # =====================================================
 
       - name: Create RR MOTOR icon
         shell: bash
         run: |
 
           cat > app/src/main/res/drawable/rr_motor_icon.xml <<'EOF'
-
           <?xml version="1.0" encoding="utf-8"?>
 
           <vector
@@ -336,64 +301,47 @@ jobs:
               android:viewportWidth="108"
               android:viewportHeight="108">
 
-
               <path
                   android:fillColor="#075E54"
                   android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
 
-
               <path
                   android:fillColor="#FFFFFF"
-                  android:pathData="M24,68
-                  A14,14 0 1,0 52,68
-                  A14,14 0 1,0 24,68" />
-
+                  android:pathData="M24,68 A14,14 0 1,0 52,68 A14,14 0 1,0 24,68" />
 
               <path
                   android:fillColor="#075E54"
-                  android:pathData="M30,68
-                  A8,8 0 1,0 46,68
-                  A8,8 0 1,0 30,68" />
-
+                  android:pathData="M30,68 A8,8 0 1,0 46,68 A8,8 0 1,0 30,68" />
 
               <path
                   android:fillColor="#FFFFFF"
-                  android:pathData="M68,68
-                  A14,14 0 1,0 96,68
-                  A14,14 0 1,0 68,68" />
-
+                  android:pathData="M68,68 A14,14 0 1,0 96,68 A14,14 0 1,0 68,68" />
 
               <path
                   android:fillColor="#075E54"
-                  android:pathData="M74,68
-                  A8,8 0 1,0 90,68
-                  A8,8 0 1,0 74,68" />
-
+                  android:pathData="M74,68 A8,8 0 1,0 90,68 A8,8 0 1,0 74,68" />
 
               <path
                   android:fillColor="#FFFFFF"
                   android:pathData="M36,58 L50,38 L72,38 L86,58 L78,62 L69,48 L53,48 L44,62 Z" />
-
 
               <path
                   android:fillColor="#FFFFFF"
                   android:pathData="M47,34 L65,34 L70,40 L43,40 Z" />
 
           </vector>
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 11. STRINGS
-      # =========================================================
+      # =====================================================
 
       - name: Create strings.xml
         shell: bash
         run: |
 
           cat > app/src/main/res/values/strings.xml <<'EOF'
-
           <?xml version="1.0" encoding="utf-8"?>
 
           <resources>
@@ -401,20 +349,18 @@ jobs:
               <string name="app_name">RR MOTOR</string>
 
           </resources>
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 12. COLORS
-      # =========================================================
+      # =====================================================
 
       - name: Create colors.xml
         shell: bash
         run: |
 
           cat > app/src/main/res/values/colors.xml <<'EOF'
-
           <?xml version="1.0" encoding="utf-8"?>
 
           <resources>
@@ -430,20 +376,18 @@ jobs:
               <color name="gray">#777777</color>
 
           </resources>
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 13. THEME
-      # =========================================================
+      # =====================================================
 
       - name: Create themes.xml
         shell: bash
         run: |
 
           cat > app/src/main/res/values/themes.xml <<'EOF'
-
           <?xml version="1.0" encoding="utf-8"?>
 
           <resources>
@@ -452,44 +396,37 @@ jobs:
                   name="AppTheme"
                   parent="android:style/Theme.Material.Light.NoActionBar">
 
-
                   <item name="android:fontFamily">
                       sans
                   </item>
-
 
                   <item name="android:colorAccent">
                       @color/rr_green
                   </item>
 
-
                   <item name="android:statusBarColor">
                       @color/rr_dark
                   </item>
-
 
                   <item name="android:navigationBarColor">
                       @color/white
                   </item>
 
-
               </style>
 
           </resources>
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 14. LAYOUT
-      # =========================================================
+      # =====================================================
 
       - name: Create activity_main.xml
         shell: bash
         run: |
 
           cat > app/src/main/res/layout/activity_main.xml <<'EOF'
-
           <?xml version="1.0" encoding="utf-8"?>
 
           <ScrollView
@@ -500,7 +437,6 @@ jobs:
 
               android:layout_height="match_parent">
 
-
               <LinearLayout
 
                   android:layout_width="match_parent"
@@ -510,7 +446,6 @@ jobs:
                   android:orientation="vertical"
 
                   android:padding="16dp">
-
 
                   <ImageView
 
@@ -525,7 +460,6 @@ jobs:
                       android:src="@drawable/rr_motor_icon"
 
                       android:contentDescription="RR MOTOR" />
-
 
                   <TextView
 
@@ -545,7 +479,6 @@ jobs:
 
                       android:layout_marginTop="8dp" />
 
-
                   <TextView
 
                       android:layout_width="match_parent"
@@ -562,7 +495,6 @@ jobs:
 
                       android:layout_marginBottom="20dp" />
 
-
                   <EditText
 
                       android:id="@+id/nama"
@@ -574,7 +506,6 @@ jobs:
                       android:hint="Nama (opsional)"
 
                       android:inputType="textPersonName" />
-
 
                   <EditText
 
@@ -590,7 +521,6 @@ jobs:
 
                       android:layout_marginTop="8dp" />
 
-
                   <EditText
 
                       android:id="@+id/mesin"
@@ -604,7 +534,6 @@ jobs:
                       android:inputType="text"
 
                       android:layout_marginTop="8dp" />
-
 
                   <EditText
 
@@ -620,7 +549,6 @@ jobs:
 
                       android:layout_marginTop="8dp" />
 
-
                   <EditText
 
                       android:id="@+id/km"
@@ -634,7 +562,6 @@ jobs:
                       android:inputType="number"
 
                       android:layout_marginTop="8dp" />
-
 
                   <EditText
 
@@ -650,7 +577,6 @@ jobs:
 
                       android:layout_marginTop="8dp" />
 
-
                   <Button
 
                       android:id="@+id/tanggal"
@@ -662,7 +588,6 @@ jobs:
                       android:text="📅 PILIH TANGGAL GANTI OLI"
 
                       android:layout_marginTop="12dp" />
-
 
                   <TextView
 
@@ -682,7 +607,6 @@ jobs:
 
                       android:layout_marginTop="6dp" />
 
-
                   <Button
 
                       android:id="@+id/simpan"
@@ -697,7 +621,6 @@ jobs:
 
                       android:layout_marginTop="14dp" />
 
-
                   <Button
 
                       android:id="@+id/buka"
@@ -709,7 +632,6 @@ jobs:
                       android:text="📋 SEMUA REMINDER"
 
                       android:layout_marginTop="8dp" />
-
 
                   <TextView
 
@@ -727,7 +649,6 @@ jobs:
 
                       android:layout_marginTop="16dp" />
 
-
                   <LinearLayout
 
                       android:id="@+id/riwayat"
@@ -742,26 +663,22 @@ jobs:
 
                       android:layout_marginTop="10dp" />
 
-
               </LinearLayout>
 
           </ScrollView>
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 15. MAIN ACTIVITY
-      # =========================================================
+      # =====================================================
 
       - name: Create MainActivity.java
         shell: bash
         run: |
 
           cat > app/src/main/java/com/rrmotor/sms/MainActivity.java <<'EOF'
-
           package com.rrmotor.sms;
-
 
           import android.Manifest;
           import android.app.Activity;
@@ -779,10 +696,8 @@ jobs:
           import android.widget.TextView;
           import android.widget.Toast;
 
-
           import org.json.JSONArray;
           import org.json.JSONObject;
-
 
           import java.text.SimpleDateFormat;
           import java.util.ArrayList;
@@ -790,17 +705,13 @@ jobs:
           import java.util.Date;
           import java.util.Locale;
 
-
           public class MainActivity extends Activity {
-
 
               public static final String PREF =
                       "RR_MOTOR_DATA";
 
-
               public static final String DATA =
                       "REMINDER_LIST";
-
 
               private EditText nama;
               private EditText motor;
@@ -809,34 +720,24 @@ jobs:
               private EditText nopol;
               private EditText wa;
 
-
               private TextView tanggalText;
               private TextView jumlah;
 
-
               private LinearLayout riwayat;
 
-
               private SharedPreferences pref;
-
 
               private final ArrayList<Reminder> list =
                       new ArrayList<>();
 
-
               private Calendar tanggalDipilih;
-
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
 
                   super.onCreate(savedInstanceState);
 
-
-                  setContentView(
-                          R.layout.activity_main
-                  );
-
+                  setContentView(R.layout.activity_main);
 
                   pref =
                           getSharedPreferences(
@@ -844,138 +745,98 @@ jobs:
                                   MODE_PRIVATE
                           );
 
-
                   nama =
                           findViewById(R.id.nama);
-
 
                   motor =
                           findViewById(R.id.motor);
 
-
                   mesin =
                           findViewById(R.id.mesin);
-
 
                   km =
                           findViewById(R.id.km);
 
-
                   nopol =
                           findViewById(R.id.nopol);
-
 
                   wa =
                           findViewById(R.id.wa);
 
-
                   tanggalText =
                           findViewById(R.id.tanggalText);
-
 
                   jumlah =
                           findViewById(R.id.jumlah);
 
-
                   riwayat =
                           findViewById(R.id.riwayat);
 
-
                   load();
 
-
                   updateJumlah();
-
 
                   findViewById(R.id.tanggal)
                           .setOnClickListener(
                                   v -> pilihTanggal()
                           );
 
-
                   findViewById(R.id.simpan)
                           .setOnClickListener(
                                   v -> simpanReminder()
                           );
 
-
                   findViewById(R.id.buka)
                           .setOnClickListener(
                                   v -> {
 
-                                      if (
-                                          riwayat.getVisibility()
-                                              == View.VISIBLE
-                                      ) {
+                                      riwayat.setVisibility(
+                                              View.VISIBLE
+                                      );
 
-                                          riwayat.setVisibility(
-                                                  View.GONE
-                                          );
-
-                                      } else {
-
-                                          riwayat.setVisibility(
-                                                  View.VISIBLE
-                                          );
-
-                                          tampilkanSemua();
-                                      }
-
+                                      tampilkanSemua();
                                   }
                           );
 
-
                   if (
-                      android.os.Build.VERSION.SDK_INT
-                          >= 33
+                      android.os.Build.VERSION.SDK_INT >= 33
                   ) {
 
                       if (
                           checkSelfPermission(
-                              Manifest.permission
-                                  .POST_NOTIFICATIONS
+                              Manifest.permission.POST_NOTIFICATIONS
                           )
-                          != PackageManager
-                              .PERMISSION_GRANTED
+                          != PackageManager.PERMISSION_GRANTED
                       ) {
 
                           requestPermissions(
                               new String[]{
-                                  Manifest.permission
-                                      .POST_NOTIFICATIONS
+                                  Manifest.permission.POST_NOTIFICATIONS
                               },
                               100
                           );
-
                       }
                   }
               }
-
-
-              // =================================================
-              // PILIH TANGGAL
-              // =================================================
 
               private void pilihTanggal() {
 
                   Calendar sekarang =
                           Calendar.getInstance();
 
-
                   Calendar awal =
                           tanggalDipilih != null
                                   ? tanggalDipilih
                                   : sekarang;
 
-
                   DatePickerDialog dialog =
                           new DatePickerDialog(
                                   this,
+
                                   (view, year, month, day) -> {
 
                                       tanggalDipilih =
                                               Calendar.getInstance();
-
 
                                       tanggalDipilih.set(
                                               year,
@@ -986,47 +847,34 @@ jobs:
                                               0
                                       );
 
-
                                       tanggalDipilih.set(
                                               Calendar.MILLISECOND,
                                               0
                                       );
-
 
                                       String hasil =
                                               new SimpleDateFormat(
                                                   "dd-MM-yyyy",
                                                   Locale.getDefault()
                                               ).format(
-                                                  tanggalDipilih
-                                                      .getTime()
+                                                  tanggalDipilih.getTime()
                                               );
-
 
                                       tanggalText.setText(
                                               "Tanggal ganti oli: "
-                                                      + hasil
+                                              + hasil
                                       );
                                   },
-                                  awal.get(
-                                      Calendar.YEAR
-                                  ),
-                                  awal.get(
-                                      Calendar.MONTH
-                                  ),
-                                  awal.get(
-                                      Calendar.DAY_OF_MONTH
-                                  )
-                          );
 
+                                  awal.get(Calendar.YEAR),
+
+                                  awal.get(Calendar.MONTH),
+
+                                  awal.get(Calendar.DAY_OF_MONTH)
+                          );
 
                   dialog.show();
               }
-
-
-              // =================================================
-              // SIMPAN
-              // =================================================
 
               private void simpanReminder() {
 
@@ -1035,40 +883,32 @@ jobs:
                                   .toString()
                                   .trim();
 
-
                   String motorText =
                           motor.getText()
                                   .toString()
                                   .trim();
-
 
                   String mesinText =
                           mesin.getText()
                                   .toString()
                                   .trim();
 
-
                   String kmText =
                           km.getText()
                                   .toString()
                                   .trim();
-
 
                   String nopolText =
                           nopol.getText()
                                   .toString()
                                   .trim();
 
-
                   String waText =
                           wa.getText()
                                   .toString()
                                   .trim();
 
-
-                  if (
-                      TextUtils.isEmpty(waText)
-                  ) {
+                  if (TextUtils.isEmpty(waText)) {
 
                       wa.setError(
                               "No. WhatsApp wajib diisi"
@@ -1079,10 +919,7 @@ jobs:
                       return;
                   }
 
-
-                  if (
-                      tanggalDipilih == null
-                  ) {
+                  if (tanggalDipilih == null) {
 
                       Toast.makeText(
                               this,
@@ -1093,71 +930,48 @@ jobs:
                       return;
                   }
 
-
                   String nomor =
                           normalizeNumber(
                                   waText
                           );
 
-
                   long tanggalServis =
                           tanggalDipilih.getTimeInMillis();
 
-
-                  /*
-                   * 31 hari dari tanggal yang dipilih.
-                   */
-
                   long jatuhTempo =
                           tanggalServis
-                              + (
-                                  31L
-                                  * 24L
-                                  * 60L
-                                  * 60L
-                                  * 1000L
-                              );
-
+                          +
+                          (31L * 24L * 60L * 60L * 1000L);
 
                   Reminder r =
                           new Reminder();
 
-
                   r.id =
                           System.currentTimeMillis();
-
 
                   r.nama =
                           namaText;
 
-
                   r.motor =
                           motorText;
-
 
                   r.mesin =
                           mesinText;
 
-
                   r.km =
                           kmText;
-
 
                   r.nopol =
                           nopolText;
 
-
                   r.wa =
                           nomor;
-
 
                   r.tanggalServis =
                           tanggalServis;
 
-
                   r.jatuhTempo =
                           jatuhTempo;
-
 
                   r.pesan =
                           buatPesan(
@@ -1168,28 +982,18 @@ jobs:
                               nopolText
                           );
 
-
                   r.notified = false;
-
 
                   list.add(
                           0,
                           r
                   );
 
-
                   saveData();
 
-
-                  /*
-                   * Jika tanggal sudah lewat,
-                   * notifikasi dijalankan segera.
-                   * Jika belum, dijadwalkan.
-                   */
-
                   if (
-                      jatuhTempo
-                          <= System.currentTimeMillis()
+                      jatuhTempo <=
+                      System.currentTimeMillis()
                   ) {
 
                       Intent intent =
@@ -1198,12 +1002,10 @@ jobs:
                                   ReminderReceiver.class
                               );
 
-
                       intent.putExtra(
                               "id",
                               r.id
                       );
-
 
                       sendBroadcast(intent);
 
@@ -1215,24 +1017,19 @@ jobs:
                       );
                   }
 
-
                   updateJumlah();
 
-
                   tampilkanSemua();
-
 
                   riwayat.setVisibility(
                           View.VISIBLE
                   );
 
-
                   Toast.makeText(
                           this,
-                          "Reminder berhasil disimpan.\nJatuh tempo 31 hari dari tanggal ganti oli.",
+                          "Reminder berhasil disimpan.",
                           Toast.LENGTH_LONG
                   ).show();
-
 
                   nama.setText("");
 
@@ -1246,18 +1043,12 @@ jobs:
 
                   wa.setText("");
 
-
                   tanggalDipilih = null;
 
                   tanggalText.setText(
                           "Tanggal belum dipilih"
                   );
               }
-
-
-              // =================================================
-              // TEMPLATE WHATSAPP
-              // =================================================
 
               public static String buatPesan(
                       String nama,
@@ -1267,20 +1058,15 @@ jobs:
                       String nopol
               ) {
 
-
                   String sapaan =
                           TextUtils.isEmpty(nama)
                                   ? "Bapak/Ibu"
                                   : "Bapak/Ibu " + nama;
 
-
                   StringBuilder detail =
                           new StringBuilder();
 
-
-                  if (
-                      !TextUtils.isEmpty(motor)
-                  ) {
+                  if (!TextUtils.isEmpty(motor)) {
 
                       detail.append(
                               "\n🏍️ Tipe Motor: "
@@ -1289,10 +1075,7 @@ jobs:
                       detail.append(motor);
                   }
 
-
-                  if (
-                      !TextUtils.isEmpty(nopol)
-                  ) {
+                  if (!TextUtils.isEmpty(nopol)) {
 
                       detail.append(
                               "\n🪪 No. Polisi: "
@@ -1301,10 +1084,7 @@ jobs:
                       detail.append(nopol);
                   }
 
-
-                  if (
-                      !TextUtils.isEmpty(km)
-                  ) {
+                  if (!TextUtils.isEmpty(km)) {
 
                       detail.append(
                               "\n🔧 KM: "
@@ -1313,10 +1093,7 @@ jobs:
                       detail.append(km);
                   }
 
-
-                  if (
-                      !TextUtils.isEmpty(mesin)
-                  ) {
+                  if (!TextUtils.isEmpty(mesin)) {
 
                       detail.append(
                               "\n🔢 No. Mesin: "
@@ -1324,7 +1101,6 @@ jobs:
 
                       detail.append(mesin);
                   }
-
 
                   return
 
@@ -1353,15 +1129,9 @@ jobs:
                       + "*RR MOTOR*";
               }
 
-
-              // =================================================
-              // NORMALIZE NOMOR WA
-              // =================================================
-
               private String normalizeNumber(
                       String number
               ) {
-
 
                   number =
                           number.replaceAll(
@@ -1369,73 +1139,49 @@ jobs:
                                   ""
                           );
 
-
-                  if (
-                      number.startsWith("08")
-                  ) {
+                  if (number.startsWith("08")) {
 
                       return "+62"
                               + number.substring(1);
                   }
 
-
-                  if (
-                      number.startsWith("8")
-                  ) {
+                  if (number.startsWith("8")) {
 
                       return "+62"
                               + number;
                   }
 
-
-                  if (
-                      number.startsWith("62")
-                  ) {
+                  if (number.startsWith("62")) {
 
                       return "+"
                               + number;
                   }
 
-
                   return number;
               }
-
-
-              // =================================================
-              // BUKA WHATSAPP
-              // =================================================
 
               public void kirimWhatsApp(
                       Reminder r
               ) {
 
-
                   String nomor =
                           r.wa;
 
-
-                  if (
-                      nomor.startsWith("+")
-                  ) {
+                  if (nomor.startsWith("+")) {
 
                       nomor =
                               nomor.substring(1);
                   }
 
-
                   try {
-
 
                       Uri uri =
                               Uri.parse(
                                   "https://wa.me/"
                                   + nomor
                                   + "?text="
-                                  + Uri.encode(
-                                      r.pesan
-                                  )
+                                  + Uri.encode(r.pesan)
                               );
-
 
                       Intent intent =
                               new Intent(
@@ -1443,46 +1189,30 @@ jobs:
                                   uri
                               );
 
-
                       startActivity(intent);
 
-
                   } catch (Exception e) {
-
 
                       Toast.makeText(
                               this,
                               "WhatsApp tidak dapat dibuka.",
                               Toast.LENGTH_LONG
                       ).show();
-
                   }
               }
 
-
-              // =================================================
-              // TAMPILKAN SEMUA
-              // =================================================
-
               private void tampilkanSemua() {
-
 
                   riwayat.removeAllViews();
 
-
-                  if (
-                      list.isEmpty()
-                  ) {
-
+                  if (list.isEmpty()) {
 
                       TextView kosong =
                               new TextView(this);
 
-
                       kosong.setText(
                               "Belum ada reminder."
                       );
-
 
                       kosong.setPadding(
                               10,
@@ -1491,31 +1221,21 @@ jobs:
                               20
                       );
 
-
                       riwayat.addView(
                               kosong
                       );
 
-
                       return;
                   }
 
-
-                  for (
-                      Reminder r : list
-                  ) {
-
+                  for (Reminder r : list) {
 
                       LinearLayout box =
-                              new LinearLayout(
-                                  this
-                              );
-
+                              new LinearLayout(this);
 
                       box.setOrientation(
                               LinearLayout.VERTICAL
                       );
-
 
                       box.setPadding(
                               14,
@@ -1524,173 +1244,109 @@ jobs:
                               14
                       );
 
-
                       TextView info =
-                              new TextView(
-                                  this
-                              );
-
+                              new TextView(this);
 
                       StringBuilder text =
                               new StringBuilder();
-
 
                       text.append(
                               "📅 GANTI OLI: "
                       );
 
-
                       text.append(
-                          formatDate(
-                              r.tanggalServis
-                          )
+                              formatDate(
+                                  r.tanggalServis
+                              )
                       );
-
 
                       text.append(
                               "\n⏰ JATUH TEMPO: "
                       );
 
-
                       text.append(
-                          formatDate(
-                              r.jatuhTempo
-                          )
+                              formatDate(
+                                  r.jatuhTempo
+                              )
                       );
-
 
                       text.append(
                               "\n📱 WA: "
                       );
 
+                      text.append(r.wa);
 
-                      text.append(
-                              r.wa
-                      );
-
-
-                      if (
-                          !TextUtils.isEmpty(
-                              r.nama
-                          )
-                      ) {
+                      if (!TextUtils.isEmpty(r.nama)) {
 
                           text.append(
                               "\n👤 Nama: "
                           );
 
-                          text.append(
-                              r.nama
-                          );
+                          text.append(r.nama);
                       }
 
-
-                      if (
-                          !TextUtils.isEmpty(
-                              r.motor
-                          )
-                      ) {
+                      if (!TextUtils.isEmpty(r.motor)) {
 
                           text.append(
                               "\n🏍️ Motor: "
                           );
 
-                          text.append(
-                              r.motor
-                          );
+                          text.append(r.motor);
                       }
 
-
-                      if (
-                          !TextUtils.isEmpty(
-                              r.nopol
-                          )
-                      ) {
+                      if (!TextUtils.isEmpty(r.nopol)) {
 
                           text.append(
                               "\n🪪 Nopol: "
                           );
 
-                          text.append(
-                              r.nopol
-                          );
+                          text.append(r.nopol);
                       }
 
-
-                      if (
-                          !TextUtils.isEmpty(
-                              r.km
-                          )
-                      ) {
+                      if (!TextUtils.isEmpty(r.km)) {
 
                           text.append(
                               "\n🔧 KM: "
                           );
 
-                          text.append(
-                              r.km
-                          );
+                          text.append(r.km);
                       }
 
-
-                      if (
-                          !TextUtils.isEmpty(
-                              r.mesin
-                          )
-                      ) {
+                      if (!TextUtils.isEmpty(r.mesin)) {
 
                           text.append(
                               "\n🔢 Mesin: "
                           );
 
-                          text.append(
-                              r.mesin
-                          );
+                          text.append(r.mesin);
                       }
-
 
                       info.setText(
                               text.toString()
                       );
 
-
-                      box.addView(
-                              info
-                      );
-
+                      box.addView(info);
 
                       Button kirim =
-                              new Button(
-                                  this
-                              );
-
+                              new Button(this);
 
                       kirim.setText(
                               "🟢 KIRIM WA"
                       );
-
 
                       kirim.setOnClickListener(
                           v ->
                               kirimWhatsApp(r)
                       );
 
-
-                      box.addView(
-                              kirim
-                      );
-
+                      box.addView(kirim);
 
                       Button hapus =
-                              new Button(
-                                  this
-                              );
-
+                              new Button(this);
 
                       hapus.setText(
                               "🗑️ HAPUS REMINDER"
                       );
-
 
                       hapus.setOnClickListener(
                           v -> {
@@ -1707,31 +1363,18 @@ jobs:
                               updateJumlah();
 
                               tampilkanSemua();
-
                           }
                       );
 
+                      box.addView(hapus);
 
-                      box.addView(
-                              hapus
-                      );
-
-
-                      riwayat.addView(
-                              box
-                      );
+                      riwayat.addView(box);
                   }
               }
-
-
-              // =================================================
-              // FORMAT TANGGAL
-              // =================================================
 
               private String formatDate(
                       long value
               ) {
-
 
                   return new SimpleDateFormat(
                           "dd-MM-yyyy HH:mm",
@@ -1741,13 +1384,7 @@ jobs:
                   );
               }
 
-
-              // =================================================
-              // JUMLAH
-              // =================================================
-
               private void updateJumlah() {
-
 
                   jumlah.setText(
                           "Jumlah reminder: "
@@ -1755,101 +1392,51 @@ jobs:
                   );
               }
 
-
-              // =================================================
-              // SIMPAN JSON
-              // =================================================
-
               private void saveData() {
 
-
                   try {
-
 
                       JSONArray array =
                               new JSONArray();
 
-
-                      for (
-                          Reminder r : list
-                      ) {
-
+                      for (Reminder r : list) {
 
                           JSONObject o =
                                   new JSONObject();
 
+                          o.put("id", r.id);
 
-                          o.put(
-                              "id",
-                              r.id
-                          );
+                          o.put("nama", r.nama);
 
+                          o.put("motor", r.motor);
 
-                          o.put(
-                              "nama",
-                              r.nama
-                          );
+                          o.put("mesin", r.mesin);
 
+                          o.put("km", r.km);
 
-                          o.put(
-                              "motor",
-                              r.motor
-                          );
+                          o.put("nopol", r.nopol);
 
+                          o.put("wa", r.wa);
 
-                          o.put(
-                              "mesin",
-                              r.mesin
-                          );
-
-
-                          o.put(
-                              "km",
-                              r.km
-                          );
-
-
-                          o.put(
-                              "nopol",
-                              r.nopol
-                          );
-
-
-                          o.put(
-                              "wa",
-                              r.wa
-                          );
-
-
-                          o.put(
-                              "pesan",
-                              r.pesan
-                          );
-
+                          o.put("pesan", r.pesan);
 
                           o.put(
                               "tanggalServis",
                               r.tanggalServis
                           );
 
-
                           o.put(
                               "jatuhTempo",
                               r.jatuhTempo
                           );
-
 
                           o.put(
                               "notified",
                               r.notified
                           );
 
-
-                          array.put(
-                              o
-                          );
+                          array.put(o);
                       }
-
 
                       pref.edit()
                           .putString(
@@ -1858,27 +1445,15 @@ jobs:
                           )
                           .apply();
 
-
-                  } catch (
-                      Exception e
-                  ) {
-
+                  } catch (Exception e) {
 
                       e.printStackTrace();
-
                   }
               }
 
-
-              // =================================================
-              // LOAD DATA
-              // =================================================
-
               private void load() {
 
-
                   list.clear();
-
 
                   String data =
                           pref.getString(
@@ -1886,23 +1461,15 @@ jobs:
                               ""
                           );
 
-
-                  if (
-                      TextUtils.isEmpty(data)
-                  ) {
+                  if (TextUtils.isEmpty(data)) {
 
                       return;
                   }
 
-
                   try {
 
-
                       JSONArray array =
-                              new JSONArray(
-                                  data
-                              );
-
+                              new JSONArray(data);
 
                       for (
                           int i = 0;
@@ -1910,88 +1477,51 @@ jobs:
                           i++
                       ) {
 
-
                           JSONObject o =
-                                  array.getJSONObject(
-                                      i
-                                  );
-
+                                  array.getJSONObject(i);
 
                           Reminder r =
                                   new Reminder();
 
-
                           r.id =
-                              o.optLong(
-                                  "id"
-                              );
-
+                              o.optLong("id");
 
                           r.nama =
-                              o.optString(
-                                  "nama"
-                              );
-
+                              o.optString("nama");
 
                           r.motor =
-                              o.optString(
-                                  "motor"
-                              );
-
+                              o.optString("motor");
 
                           r.mesin =
-                              o.optString(
-                                  "mesin"
-                              );
-
+                              o.optString("mesin");
 
                           r.km =
-                              o.optString(
-                                  "km"
-                              );
-
+                              o.optString("km");
 
                           r.nopol =
-                              o.optString(
-                                  "nopol"
-                              );
-
+                              o.optString("nopol");
 
                           r.wa =
-                              o.optString(
-                                  "wa"
-                              );
-
+                              o.optString("wa");
 
                           r.pesan =
-                              o.optString(
-                                  "pesan"
-                              );
-
+                              o.optString("pesan");
 
                           r.tanggalServis =
                               o.optLong(
                                   "tanggalServis"
                               );
 
-
                           r.jatuhTempo =
                               o.optLong(
                                   "jatuhTempo"
                               );
-
 
                           r.notified =
                               o.optBoolean(
                                   "notified",
                                   false
                               );
-
-
-                          /*
-                           * Untuk data lama yang belum
-                           * mempunyai pesan, buat ulang.
-                           */
 
                           if (
                               TextUtils.isEmpty(
@@ -2009,82 +1539,53 @@ jobs:
                                   );
                           }
 
-
-                          list.add(
-                              r
-                          );
+                          list.add(r);
                       }
 
-
-                  } catch (
-                      Exception e
-                  ) {
-
+                  } catch (Exception e) {
 
                       e.printStackTrace();
-
                   }
               }
 
-
-              // =================================================
-              // MODEL REMINDER
-              // =================================================
-
               public static class Reminder {
-
 
                   public long id;
 
-
                   public String nama = "";
-
 
                   public String motor = "";
 
-
                   public String mesin = "";
-
 
                   public String km = "";
 
-
                   public String nopol = "";
-
 
                   public String wa = "";
 
-
                   public String pesan = "";
-
 
                   public long tanggalServis;
 
-
                   public long jatuhTempo;
 
-
                   public boolean notified;
-
               }
-
           }
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 16. REMINDER SCHEDULER
-      # =========================================================
+      # =====================================================
 
       - name: Create ReminderScheduler.java
         shell: bash
         run: |
 
           cat > app/src/main/java/com/rrmotor/sms/ReminderScheduler.java <<'EOF'
-
           package com.rrmotor.sms;
-
 
           import android.app.AlarmManager;
           import android.app.PendingIntent;
@@ -2092,15 +1593,12 @@ jobs:
           import android.content.Intent;
           import android.os.Build;
 
-
           public class ReminderScheduler {
-
 
               public static void schedule(
                       Context context,
                       MainActivity.Reminder reminder
               ) {
-
 
                   AlarmManager alarm =
                           (AlarmManager)
@@ -2108,27 +1606,21 @@ jobs:
                               Context.ALARM_SERVICE
                           );
 
-
                   Intent intent =
                           new Intent(
                               context,
                               ReminderReceiver.class
                           );
 
-
                   intent.putExtra(
                           "id",
                           reminder.id
                   );
 
-
                   int requestCode =
-                          (int)
-                          (
-                              reminder.id
-                              & 0x7fffffff
+                          (int)(
+                              reminder.id & 0x7fffffff
                           );
-
 
                   PendingIntent pending =
                           PendingIntent.getBroadcast(
@@ -2140,11 +1632,9 @@ jobs:
                               PendingIntent.FLAG_IMMUTABLE
                           );
 
-
                   if (
                       Build.VERSION.SDK_INT >= 23
                   ) {
-
 
                       alarm.setAndAllowWhileIdle(
                           AlarmManager.RTC_WAKEUP,
@@ -2152,9 +1642,7 @@ jobs:
                           pending
                       );
 
-
                   } else {
-
 
                       alarm.set(
                           AlarmManager.RTC_WAKEUP,
@@ -2164,12 +1652,10 @@ jobs:
                   }
               }
 
-
               public static void cancel(
                       Context context,
                       long id
               ) {
-
 
                   AlarmManager alarm =
                           (AlarmManager)
@@ -2177,20 +1663,17 @@ jobs:
                               Context.ALARM_SERVICE
                           );
 
-
                   Intent intent =
                           new Intent(
                               context,
                               ReminderReceiver.class
                           );
 
-
                   PendingIntent pending =
                           PendingIntent.getBroadcast(
                               context,
                               (int)(
-                                  id
-                                  & 0x7fffffff
+                                  id & 0x7fffffff
                               ),
                               intent,
                               PendingIntent.FLAG_UPDATE_CURRENT
@@ -2198,28 +1681,22 @@ jobs:
                               PendingIntent.FLAG_IMMUTABLE
                           );
 
-
-                  alarm.cancel(
-                          pending
-                  );
+                  alarm.cancel(pending);
               }
           }
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 17. REMINDER RECEIVER
-      # =========================================================
+      # =====================================================
 
       - name: Create ReminderReceiver.java
         shell: bash
         run: |
 
           cat > app/src/main/java/com/rrmotor/sms/ReminderReceiver.java <<'EOF'
-
           package com.rrmotor.sms;
-
 
           import android.app.NotificationChannel;
           import android.app.NotificationManager;
@@ -2230,18 +1707,14 @@ jobs:
           import android.net.Uri;
           import android.os.Build;
 
-
           import org.json.JSONArray;
           import org.json.JSONObject;
-
 
           public class ReminderReceiver
                   extends BroadcastReceiver {
 
-
               private static final String CHANNEL =
                       "RR_MOTOR_REMINDER";
-
 
               @Override
               public void onReceive(
@@ -2249,21 +1722,15 @@ jobs:
                       Intent intent
               ) {
 
-
                   long id =
                           intent.getLongExtra(
                               "id",
                               -1
                           );
 
-
-                  if (
-                      id == -1
-                  ) {
-
+                  if (id == -1) {
                       return;
                   }
-
 
                   android.content.SharedPreferences pref =
                           context.getSharedPreferences(
@@ -2271,22 +1738,16 @@ jobs:
                               Context.MODE_PRIVATE
                           );
 
-
                   String data =
                           pref.getString(
                               MainActivity.DATA,
                               ""
                           );
 
-
                   try {
 
-
                       JSONArray array =
-                              new JSONArray(
-                                  data
-                              );
-
+                              new JSONArray(data);
 
                       for (
                           int i = 0;
@@ -2294,43 +1755,24 @@ jobs:
                           i++
                       ) {
 
-
                           JSONObject o =
-                                  array.getJSONObject(
-                                      i
-                                  );
-
+                                  array.getJSONObject(i);
 
                           if (
                               o.optLong("id")
                               != id
                           ) {
-
                               continue;
                           }
 
-
                           String nama =
-                                  o.optString(
-                                      "nama"
-                                  );
-
+                                  o.optString("nama");
 
                           String wa =
-                                  o.optString(
-                                      "wa"
-                                  );
-
+                                  o.optString("wa");
 
                           String pesan =
-                                  o.optString(
-                                      "pesan"
-                                  );
-
-
-                          /*
-                           * Pastikan template selalu ada.
-                           */
+                                  o.optString("pesan");
 
                           if (
                               pesan == null
@@ -2338,53 +1780,20 @@ jobs:
                               pesan.isEmpty()
                           ) {
 
-
                               pesan =
                                   MainActivity.buatPesan(
-                                      o.optString(
-                                          "nama"
-                                      ),
-                                      o.optString(
-                                          "motor"
-                                      ),
-                                      o.optString(
-                                          "mesin"
-                                      ),
-                                      o.optString(
-                                          "km"
-                                      ),
-                                      o.optString(
-                                          "nopol"
-                                      )
+                                      o.optString("nama"),
+                                      o.optString("motor"),
+                                      o.optString("mesin"),
+                                      o.optString("km"),
+                                      o.optString("nopol")
                                   );
                           }
-
-
-                          /*
-                           * Reminder tetap disimpan.
-                           * Hanya ditandai sudah diberi
-                           * notifikasi.
-                           */
 
                           o.put(
                               "notified",
                               true
                           );
-
-
-                          array.put(
-                              i,
-                              o
-                          );
-
-
-                          pref.edit()
-                              .putString(
-                                  MainActivity.DATA,
-                                  array.toString()
-                              )
-                              .apply();
-
 
                           tampilkanNotifikasi(
                               context,
@@ -2394,21 +1803,23 @@ jobs:
                               pesan
                           );
 
+                          array.put(i, o);
+
+                          pref.edit()
+                              .putString(
+                                  MainActivity.DATA,
+                                  array.toString()
+                              )
+                              .apply();
 
                           return;
                       }
 
-
-                  } catch (
-                      Exception e
-                  ) {
-
+                  } catch (Exception e) {
 
                       e.printStackTrace();
-
                   }
               }
-
 
               private void tampilkanNotifikasi(
                       Context context,
@@ -2418,18 +1829,15 @@ jobs:
                       String pesan
               ) {
 
-
                   NotificationManager manager =
                           (NotificationManager)
                           context.getSystemService(
                               Context.NOTIFICATION_SERVICE
                           );
 
-
                   if (
                       Build.VERSION.SDK_INT >= 26
                   ) {
-
 
                       NotificationChannel channel =
                               new NotificationChannel(
@@ -2439,16 +1847,13 @@ jobs:
                                       .IMPORTANCE_HIGH
                               );
 
-
                       manager.createNotificationChannel(
                           channel
                       );
                   }
 
-
                   String nomor =
                           wa;
-
 
                   if (
                       nomor.startsWith("+")
@@ -2458,15 +1863,13 @@ jobs:
                           nomor.substring(1);
                   }
 
-
                   /*
-                   * SATU KLIK DARI NOTIFIKASI
+                   * SEKALI KLIK
                    *
-                   * Tekan notifikasi:
-                   * langsung membuka WhatsApp.
-                   *
-                   * Nomor dan template sudah
-                   * dimasukkan otomatis.
+                   * Notifikasi ditekan
+                   * -> WhatsApp dibuka
+                   * -> nomor sudah ada
+                   * -> template sudah ada
                    */
 
                   Uri uri =
@@ -2474,11 +1877,8 @@ jobs:
                               "https://wa.me/"
                               + nomor
                               + "?text="
-                              + Uri.encode(
-                                  pesan
-                              )
+                              + Uri.encode(pesan)
                           );
-
 
                   Intent openWhatsApp =
                           new Intent(
@@ -2486,13 +1886,11 @@ jobs:
                               uri
                           );
 
-
                   PendingIntent pending =
                           PendingIntent.getActivity(
                               context,
                               (int)(
-                                  id
-                                  & 0x7fffffff
+                                  id & 0x7fffffff
                               ),
                               openWhatsApp,
                               PendingIntent.FLAG_UPDATE_CURRENT
@@ -2500,13 +1898,7 @@ jobs:
                               PendingIntent.FLAG_IMMUTABLE
                           );
 
-
-                  String title =
-                          "🔔 RR MOTOR";
-
-
                   String text;
-
 
                   if (
                       nama == null
@@ -2514,13 +1906,10 @@ jobs:
                       nama.isEmpty()
                   ) {
 
-
                       text =
                           "Reminder ganti oli sudah jatuh tempo.";
 
-
                   } else {
-
 
                       text =
                           "Reminder "
@@ -2528,14 +1917,11 @@ jobs:
                           + " sudah jatuh tempo.";
                   }
 
-
                   android.app.Notification.Builder builder;
-
 
                   if (
                       Build.VERSION.SDK_INT >= 26
                   ) {
-
 
                       builder =
                           new android.app.Notification.Builder(
@@ -2543,9 +1929,7 @@ jobs:
                               CHANNEL
                           );
 
-
                   } else {
-
 
                       builder =
                           new android.app.Notification.Builder(
@@ -2553,14 +1937,13 @@ jobs:
                           );
                   }
 
-
                   builder
                       .setSmallIcon(
                           android.R.drawable
                               .ic_dialog_info
                       )
                       .setContentTitle(
-                          title
+                          "🔔 RR MOTOR"
                       )
                       .setContentText(
                           text
@@ -2572,57 +1955,43 @@ jobs:
                                   text
                                   + "\n📱 WA: "
                                   + wa
-                                  + "\n\n"
-                                  + "Tekan notifikasi untuk membuka WhatsApp."
+                                  + "\n\nTekan untuk membuka WhatsApp."
                               )
                       )
-                      .setAutoCancel(
-                          true
-                      )
-                      .setContentIntent(
-                          pending
-                      );
-
+                      .setAutoCancel(true)
+                      .setContentIntent(pending);
 
                   manager.notify(
                       (int)(
-                          id
-                          & 0x7fffffff
+                          id & 0x7fffffff
                       ),
                       builder.build()
                   );
               }
-
           }
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 18. BOOT RECEIVER
-      # =========================================================
+      # =====================================================
 
       - name: Create BootReceiver.java
         shell: bash
         run: |
 
           cat > app/src/main/java/com/rrmotor/sms/BootReceiver.java <<'EOF'
-
           package com.rrmotor.sms;
-
 
           import android.content.BroadcastReceiver;
           import android.content.Context;
           import android.content.Intent;
 
-
           import org.json.JSONArray;
           import org.json.JSONObject;
 
-
           public class BootReceiver
                   extends BroadcastReceiver {
-
 
               @Override
               public void onReceive(
@@ -2630,10 +1999,8 @@ jobs:
                       Intent intent
               ) {
 
-
                   String action =
                           intent.getAction();
-
 
                   if (
                       !Intent.ACTION_BOOT_COMPLETED
@@ -2642,10 +2009,8 @@ jobs:
                       !Intent.ACTION_MY_PACKAGE_REPLACED
                           .equals(action)
                   ) {
-
                       return;
                   }
-
 
                   android.content.SharedPreferences pref =
                           context.getSharedPreferences(
@@ -2653,26 +2018,19 @@ jobs:
                               Context.MODE_PRIVATE
                           );
 
-
                   String data =
                           pref.getString(
                               MainActivity.DATA,
                               ""
                           );
 
-
                   try {
 
-
                       JSONArray array =
-                              new JSONArray(
-                                  data
-                              );
-
+                              new JSONArray(data);
 
                       long now =
                               System.currentTimeMillis();
-
 
                       for (
                           int i = 0;
@@ -2680,26 +2038,16 @@ jobs:
                           i++
                       ) {
 
-
                           JSONObject o =
-                                  array.getJSONObject(
-                                      i
-                                  );
-
+                                  array.getJSONObject(i);
 
                           long id =
-                                  o.optLong(
-                                      "id",
-                                      0
-                                  );
-
+                                  o.optLong("id");
 
                           long due =
                                   o.optLong(
-                                      "jatuhTempo",
-                                      0
+                                      "jatuhTempo"
                                   );
-
 
                           boolean notified =
                                   o.optBoolean(
@@ -2707,40 +2055,18 @@ jobs:
                                       false
                                   );
 
-
-                          if (
-                              notified
-                          ) {
-
+                          if (notified) {
                               continue;
                           }
-
 
                           MainActivity.Reminder r =
                                   new MainActivity.Reminder();
 
+                          r.id = id;
 
-                          r.id =
-                              id;
+                          r.jatuhTempo = due;
 
-
-                          r.jatuhTempo =
-                              due;
-
-
-                          if (
-                              due <= now
-                          ) {
-
-
-                              /*
-                               * HP mati melewati
-                               * jatuh tempo.
-                               *
-                               * Kirim notifikasi
-                               * segera setelah HP
-                               * hidup kembali.
-                               */
+                          if (due <= now) {
 
                               Intent reminder =
                                   new Intent(
@@ -2748,20 +2074,16 @@ jobs:
                                       ReminderReceiver.class
                                   );
 
-
                               reminder.putExtra(
                                   "id",
                                   id
                               );
 
-
                               context.sendBroadcast(
                                   reminder
                               );
 
-
                           } else {
-
 
                               ReminderScheduler.schedule(
                                   context,
@@ -2770,24 +2092,18 @@ jobs:
                           }
                       }
 
-
-                  } catch (
-                      Exception e
-                  ) {
-
+                  } catch (Exception e) {
 
                       e.printStackTrace();
-
                   }
               }
           }
-
           EOF
 
 
-      # =========================================================
+      # =====================================================
       # 19. BUAT GRADLE WRAPPER
-      # =========================================================
+      # =====================================================
 
       - name: Generate Gradle Wrapper
         shell: bash
@@ -2796,26 +2112,21 @@ jobs:
           set -e
 
           gradle wrapper \
-              --gradle-version 8.10.2 \
-              --distribution-type bin
-
+            --gradle-version 8.10.2 \
+            --distribution-type bin
 
           chmod +x gradlew
 
+          echo "====================================="
+          echo "GRADLE WRAPPER BERHASIL DIBUAT"
+          echo "====================================="
 
-          test -f gradlew
-
-
-          echo "======================================"
-
-          echo "Gradle Wrapper berhasil dibuat"
-
-          echo "======================================"
+          ls -l gradlew
 
 
-      # =========================================================
+      # =====================================================
       # 20. BUILD APK
-      # =========================================================
+      # =====================================================
 
       - name: Build APK
         shell: bash
@@ -2826,13 +2137,13 @@ jobs:
           ./gradlew clean
 
           ./gradlew assembleDebug \
-              --no-daemon \
-              --stacktrace
+            --no-daemon \
+            --stacktrace
 
 
-      # =========================================================
+      # =====================================================
       # 21. CEK APK
-      # =========================================================
+      # =====================================================
 
       - name: Check APK
         shell: bash
@@ -2840,17 +2151,21 @@ jobs:
 
           set -e
 
-          find app/build/outputs/apk/debug \
-              -type f \
-              -name "*.apk" \
-              -print
+          echo "====================================="
+          echo "MENCARI APK"
+          echo "====================================="
+
+          find app/build/outputs \
+            -type f \
+            -name "*.apk" \
+            -print
 
 
-      # =========================================================
-      # 22. SIAPKAN APK
-      # =========================================================
+      # =====================================================
+      # 22. SIAPKAN APK FINAL
+      # =====================================================
 
-      - name: Prepare final APK
+      - name: Prepare APK
         shell: bash
         run: |
 
@@ -2858,44 +2173,38 @@ jobs:
 
           mkdir -p release
 
-
           APK=$(
-              find app/build/outputs/apk/debug \
+            find app/build/outputs \
               -type f \
               -name "*.apk" \
               | head -n 1
           )
 
-
           if [ -z "$APK" ]; then
 
-              echo "APK tidak ditemukan."
+            echo "APK TIDAK DITEMUKAN"
 
-              exit 1
+            exit 1
 
           fi
 
-
           cp "$APK" \
-              release/RR-MOTOR-FINAL-APK.apk
+            release/RR-MOTOR-FINAL-APK.apk
+
+          echo "====================================="
+          echo "APK RR MOTOR BERHASIL"
+          echo "====================================="
+
+          ls -lh \
+            release/RR-MOTOR-FINAL-APK.apk
 
 
-          echo "======================================"
-
-          echo "APK RR MOTOR BERHASIL DIBUAT"
-
-          ls -lh release/RR-MOTOR-FINAL-APK.apk
-
-          echo "======================================"
-
-
-      # =========================================================
+      # =====================================================
       # 23. UPLOAD APK
-      # =========================================================
+      # =====================================================
 
       - name: Upload RR MOTOR APK
         uses: actions/upload-artifact@v4
-
         with:
 
           name: RR-MOTOR-FINAL-APK
